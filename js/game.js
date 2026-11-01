@@ -235,6 +235,7 @@
         let gold = 200, lives = 20, waveNum = 0, waveActive = false, waveSpawningComplete = true, autoStart = false;
         let mana = 0, maxMana = 1000, manaRegen = 15;
         let enemies = [], towers = [], projectiles = [], effects = [], particles = [], floatingTexts = [];
+        let decals = []; // пятна крови на земле — рисуются ПОД сущностями, копятся как следы боёв
         let screenShake = 0;
         let stats = { towersBuilt: 0, goldEarned: 0, enemiesKilled: 0, wavesCompleted: 0 };
         let selectedTower = null, selectedBuildType = null; let massSelType = null;
@@ -755,11 +756,21 @@
                     if (idx >= 0 && idx < killCount.length) killCount[idx]++;
                     playExplosion();
                     floatingTexts.push({ x: this.x, y: this.y - 10, text: '+' + this.reward, life: 1.0, vy: -40 });
-                    for (let i = 0; i < (this.isBoss ? 25 : 12); i++) {
+                    // смерть в тёмном фэнтези: брызги тёмной крови (падают), пепел, восходящая душа
+                    const nBlood = this.isBoss ? 22 : 12;
+                    for (let i = 0; i < nBlood; i++) {
                         const angle = Math.random() * Math.PI * 2;
-                        const speed = 30 + Math.random() * 60;
-                        particles.push({ x: this.x, y: this.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.6 + Math.random() * 0.4, color: this.color });
+                        const speed = 40 + Math.random() * 90;
+                        particles.push({ x: this.x, y: this.y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed - 40, life: 0.5 + Math.random()*0.5, color: Math.random()<0.5 ? 'rgba(74,14,14,0.9)' : 'rgba(45,8,8,0.9)', g: 260 });
                     }
+                    for (let i = 0; i < (this.isBoss ? 10 : 6); i++) {
+                        particles.push({ x: this.x + (Math.random()-0.5)*16, y: this.y + (Math.random()-0.5)*10, vx: (Math.random()-0.5)*20, vy: -20 - Math.random()*35, life: 0.9 + Math.random()*0.7, color: 'rgba(115,110,105,0.55)' });
+                    }
+                    for (let i = 0; i < (this.isBoss ? 3 : 1); i++) {
+                        particles.push({ x: this.x + (Math.random()-0.5)*8, y: this.y - 6, vx: (Math.random()-0.5)*8, vy: -34 - Math.random()*14, life: 1.1 + Math.random()*0.5, color: 'rgba(168,190,210,0.5)' });
+                    }
+                    decals.push({ x: this.x, y: this.y + 6, r: this.isBoss ? 26 : 14, timer: 5, maxTimer: 5, rot: Math.random()*Math.PI, seed: Math.random() });
+                    if (decals.length > 40) decals.shift();
                 } else if (!fromDot) {
                     if (this.canInvisible && !this.invisible && this.invisibleCD <= 0) { this.invisible = true; this.invisibleTimer = 2; this.invisibleCD = 6; }
                     if (this.canInvuln && !this.invuln) { this.invuln = true; this.invulnTimer = 1; }
@@ -958,7 +969,7 @@
             clearSpawnQueue();
             autoTimer = -1; waveElapsed = 0;
             gold = 200; lives = 20; waveNum = 0; waveActive = false; waveSpawningComplete = true;
-            enemies = []; towers = []; projectiles = []; effects = []; particles = []; floatingTexts = [];
+            enemies = []; towers = []; projectiles = []; effects = []; particles = []; floatingTexts = []; decals = [];
             selectedTower = null; selectedBuildType = null; gameSpeed = 1; paused = false;
             gameOver = false; victory = false; lightningCD = 0; frostCD = 0; fireRainCD = 0;
             hoverCol = -1; hoverRow = -1; screenShake = 0;
@@ -1484,6 +1495,16 @@
                 }
                 ctx.restore();
             });
+            // --- Пятна крови: следы боёв, под всеми сущностями ---
+            decals.forEach(d => {
+                const a = Math.min(1, d.timer / d.maxTimer * 1.5) * 0.75;
+                ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+                ctx.fillStyle = `rgba(58,10,10,${a})`;
+                ctx.beginPath(); ctx.ellipse(0, 0, d.r, d.r*0.62, 0, 0, 2*Math.PI); ctx.fill();
+                ctx.fillStyle = `rgba(38,6,6,${a})`;
+                for (let i=0;i<4;i++){ const an = d.seed*6 + i*1.7; ctx.beginPath(); ctx.ellipse(Math.cos(an)*d.r*0.9, Math.sin(an)*d.r*0.5, d.r*0.32, d.r*0.2, an, 0, 2*Math.PI); ctx.fill(); }
+                ctx.restore();
+            });
             // Факелы-декорации: столб, чаша, живое пламя
             torches.forEach(t => {
                 const flicker = 0.75 + 0.25 * Math.sin(now * 0.006 + t.offset);
@@ -1924,7 +1945,8 @@
                 towers.forEach(t=>t.update(eDt, enemies));
                 projectiles.forEach(p=>p.update(eDt)); projectiles = projectiles.filter(p=>p.alive);
                 effects = effects.filter(e=>{ e.timer-=eDt; return e.timer>0; });
-                particles = particles.filter(p=>{ p.life-=eDt; p.x+=p.vx*eDt; p.y+=p.vy*eDt; return p.life>0; });
+                particles = particles.filter(p=>{ p.life-=eDt; p.x+=p.vx*eDt; p.y+=p.vy*eDt; if (p.g) p.vy += p.g*eDt; return p.life>0; });
+                decals = decals.filter(d=>{ d.timer -= eDt; return d.timer > 0; });
                 floatingTexts = floatingTexts.filter(t => { t.y += t.vy * eDt; t.life -= eDt; return t.life > 0; });
                 if (screenShake > 0) screenShake -= eDt;
                 totalPlayTime += eDt;
@@ -1950,6 +1972,6 @@
 
         if (loadGame() && lives > 0) { /* сейв жив */ } else resetGame(); // сейв с lives<=0 — мёртвый, начинаем заново
         // отладочный доступ к состоянию (для тестов)
-        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, lives, gold, paused, gameOver, victory, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]) }; } };
+        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, lives, gold, paused, gameOver, victory, decals: decals.length, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]) }; } };
         requestAnimationFrame(loop);
     })();
