@@ -501,3 +501,32 @@
         .info-panel { max-width: 62%; }
         .info-panel .btn { padding: 6px 12px; font-size: 13px; }
         .tower-btn { box-sizing: border-box; min-width: 148px; min-height: 46px; }
+
+/* ================= ЭТАП 5: поле почти во весь экран ================= */
+/* Панели больше не сжимают поле — они полупрозрачные и лежат поверх канвы. */
+#game-wrapper { padding: 4px; }
+.canvas-container { margin: 0; }
+#top-bar {
+    position: absolute;
+    top: 10px; left: 10px; right: 10px;
+    z-index: 30;
+    background: linear-gradient(180deg, rgba(46,16,16,0.92) 0%, rgba(28,10,10,0.86) 100%);
+    backdrop-filter: blur(3px);
+    padding: 5px 14px;
+    margin-bottom: 0;
+    border-radius: 8px;
+    gap: 6px;
+}
+#bottom-bar {
+    position: absolute;
+    bottom: 10px; left: 10px; right: 10px;
+    z-index: 30;
+    background: linear-gradient(180deg, rgba(44,22,22,0.92) 0%, rgba(26,12,12,0.88) 100%);
+    backdrop-filter: blur(3px);
+    padding: 6px 14px;
+    border-radius: 8px;
+}
+#top-bar .btn, #bottom-bar .btn { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+#top-bar .stat { padding: 2px 10px; font-size: 15px; }
+/* Мультиборд: опускаем ниже полупрозрачной верхней панели */
+#multiboard { top: 74px; }
