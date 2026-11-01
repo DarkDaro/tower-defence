@@ -1,5 +1,7 @@
 # Tower Defence «Цитадель Орды» — Описание проекта
 
+> **Примечание (2026-11-01):** монолит разделён на `index.html` + `css/style.css` + `js/game.js` (скрипт `scripts/split_game.js`). Упомянутые ниже номера строк относятся к монолитной версии — `Archive/index_monolith_2026-11-01.html`.
+
 ## Обзор
 
 Браузерная Tower Defence игра в стиле дарк-фентези Warcraft III. Один HTML-файл (`Tower Defence_TD.html`), ~1900 строк. Canvas 1792×1008 (CELL 56), vanilla JS, без зависимостей. Сохранение в localStorage.
