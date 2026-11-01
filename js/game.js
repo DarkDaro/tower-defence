@@ -839,7 +839,7 @@
                     effects.push({type:'multishot', x:sx, y:sy, color:cfg.projColor, timer:0.3, maxTimer:0.3});
                 } else { projectiles.push(new Projectile(sx, sy, primary, this.type, bcfg)); }
                 playShootThrottled(this.type);
-                effects.push({type:'muzzle', x:sx, y:sy, color:cfg.projColor, timer:0.15});
+                effects.push({type:'muzzle', x:sx, y:sy, color:cfg.projColor, timer:0.15, big:(this.type==='cannon'||this.type==='siege')});
             }
         }
 
@@ -856,6 +856,8 @@
                 this.trail.push({x:this.x, y:this.y});
                 if (this.trail.length > 7) this.trail.shift();
                 const dx=this.target.x-this.x, dy=this.target.y-this.y, dist=Math.hypot(dx,dy);
+                this.animT = (this.animT||0) + dt;
+                if (dist > 0.01) this.dir = Math.atan2(dy, dx); // ориентация вытянутых снарядов (стрела/осколок/болт)
                 if (dist < 6) { this.hit(); return; }
                 const step = Math.min(this.speed * dt, dist);
                 this.x += (dx / dist) * step;
@@ -1423,7 +1425,9 @@
 
         // Отрисовка
         function drawScene(now) {
-            ctx.setTransform(DPR,0,0,DPR,0,0); // логические координаты при HiDPI-буфере
+            // трансформ = буфер/логика (resize ставит буфер VW*scale*q, а не VW*DPR —
+            // старый setTransform(DPR) рисовал 1:1 в маленький буфер и обрезал карту на малых окнах)
+            ctx.setTransform(canvas.width / VW, 0, 0, canvas.height / VH, 0, 0);
             ctx.clearRect(0,0,VW,VH);
             ctx.save();
             if (screenShake > 0) {
@@ -1750,13 +1754,14 @@
             }
             projectiles.forEach(p => {
                 ctx.save();
-                // шлейф
-                if (p.trail && p.trail.length > 1) {
+                const isBolt = p.type === 'lightning';
+                // шлейф (молния рисует свой зигзаг)
+                if (!isBolt && p.trail && p.trail.length > 1) {
                     for (let i = 1; i < p.trail.length; i++) {
-                        const a = (i / p.trail.length) * 0.35;
+                        const a = (i / p.trail.length) * 0.28;
                         ctx.globalAlpha = a;
                         ctx.strokeStyle = p.color;
-                        ctx.lineWidth = 3 + i;
+                        ctx.lineWidth = 1.5 + i * 0.6;
                         ctx.beginPath();
                         ctx.moveTo(p.trail[i-1].x, p.trail[i-1].y);
                         ctx.lineTo(p.trail[i].x, p.trail[i].y);
@@ -1764,20 +1769,149 @@
                     }
                     ctx.globalAlpha = 1;
                 }
-                ctx.shadowColor = p.color;
-                ctx.shadowBlur = 12;
-                ctx.fillStyle = p.color;
-                ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, 2*Math.PI); ctx.fill();
-                ctx.globalAlpha = 0.4;
-                ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, 2*Math.PI); ctx.fill();
-                ctx.globalAlpha = 0.15;
-                ctx.beginPath(); ctx.arc(p.x, p.y, 12, 0, 2*Math.PI); ctx.fill();
+                const ang = p.dir || 0, t = p.animT || 0;
+                if (p.type === 'archer') {
+                    // стрела: тёмное древко, стальной наконечник, оперение
+                    ctx.translate(p.x, p.y); ctx.rotate(ang);
+                    ctx.strokeStyle = '#3b2a1c'; ctx.lineWidth = 2.4;
+                    ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(6, 0); ctx.stroke();
+                    ctx.fillStyle = '#cfd2d6';
+                    ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(5.5, -2.6); ctx.lineTo(5.5, 2.6); ctx.closePath(); ctx.fill();
+                    ctx.strokeStyle = '#8a5a33'; ctx.lineWidth = 1.6;
+                    ctx.beginPath(); ctx.moveTo(-9, -2.6); ctx.lineTo(-5, 0); ctx.lineTo(-9, 2.6); ctx.stroke();
+                } else if (p.type === 'cannon') {
+                    // чугунное ядро: дымный след, отсвет углей позади
+                    for (let i = 0; i < p.trail.length; i++) {
+                        const tp = p.trail[i], k = i / p.trail.length;
+                        ctx.globalAlpha = 0.10 + k * 0.12;
+                        ctx.fillStyle = '#55504a';
+                        ctx.beginPath(); ctx.arc(tp.x, tp.y, 2 + (1-k) * 4, 0, 2*Math.PI); ctx.fill();
+                    }
+                    ctx.globalAlpha = 1;
+                    const cg = ctx.createRadialGradient(p.x - 2, p.y - 2, 1, p.x, p.y, 6);
+                    cg.addColorStop(0, '#4a4a52'); cg.addColorStop(1, '#15151a');
+                    ctx.fillStyle = cg;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 5.5, 0, 2*Math.PI); ctx.fill();
+                    ctx.globalAlpha = 0.5 + 0.3 * Math.sin(t * 20);
+                    ctx.fillStyle = '#ff7a20';
+                    ctx.beginPath(); ctx.arc(p.x - Math.cos(ang) * 6, p.y - Math.sin(ang) * 6, 2.2, 0, 2*Math.PI); ctx.fill();
+                    ctx.globalAlpha = 1;
+                } else if (p.type === 'ice') {
+                    // ледяной осколок вдоль полёта
+                    ctx.translate(p.x, p.y); ctx.rotate(ang);
+                    ctx.shadowColor = '#88ccff'; ctx.shadowBlur = 8;
+                    const ig = ctx.createLinearGradient(-8, 0, 9, 0);
+                    ig.addColorStop(0, '#d8f2ff'); ig.addColorStop(1, '#7ec3ef');
+                    ctx.fillStyle = ig;
+                    ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(0, 3.2); ctx.lineTo(-8, 0); ctx.lineTo(0, -3.2); ctx.closePath(); ctx.fill();
+                    ctx.strokeStyle = 'rgba(240,252,255,0.9)'; ctx.lineWidth = 1;
+                    ctx.stroke();
+                } else if (p.type === 'magic') {
+                    // сфера Чернокнижника: тёмное ядро, сиреневое сияние, два спутника
+                    ctx.shadowColor = '#cc66ff'; ctx.shadowBlur = 10;
+                    const mg = ctx.createRadialGradient(p.x - 1.5, p.y - 1.5, 0.5, p.x, p.y, 5);
+                    mg.addColorStop(0, '#e9b8ff'); mg.addColorStop(0.55, '#b04dff'); mg.addColorStop(1, '#3a1058');
+                    ctx.fillStyle = mg;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 2*Math.PI); ctx.fill();
+                    ctx.shadowBlur = 0;
+                    for (let i = 0; i < 2; i++) {
+                        const a2 = t * 7 + i * Math.PI;
+                        ctx.fillStyle = 'rgba(233,184,255,0.85)';
+                        ctx.beginPath(); ctx.arc(p.x + Math.cos(a2) * 7.5, p.y + Math.sin(a2) * 7.5, 1.5, 0, 2*Math.PI); ctx.fill();
+                    }
+                } else if (p.type === 'poison') {
+                    // сгусток яда: тёмная жижа, пузырьки, блик
+                    ctx.fillStyle = '#4f7a1e';
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 5.5, 0, 2*Math.PI); ctx.fill();
+                    ctx.fillStyle = '#88cc44';
+                    ctx.beginPath(); ctx.arc(p.x - 1.2, p.y - 1.2, 3.4, 0, 2*Math.PI); ctx.fill();
+                    ctx.fillStyle = '#c8e890';
+                    ctx.beginPath(); ctx.arc(p.x - 2, p.y - 2, 1.2, 0, 2*Math.PI); ctx.fill();
+                    ctx.fillStyle = '#2f4d12';
+                    const bub = Math.sin(t * 9) * 1.2;
+                    ctx.beginPath(); ctx.arc(p.x + 2, p.y - 3 - bub, 0.9, 0, 2*Math.PI); ctx.fill();
+                    ctx.beginPath(); ctx.arc(p.x + 3, p.y + 2 + bub * 0.6, 0.7, 0, 2*Math.PI); ctx.fill();
+                } else if (isBolt) {
+                    // молния шамана: дрожащий зигзаг по шлейфу + белое ядро
+                    if (p.trail && p.trail.length > 1) {
+                        ctx.strokeStyle = 'rgba(255,220,80,0.85)';
+                        ctx.shadowColor = '#ffcc00'; ctx.shadowBlur = 10;
+                        ctx.lineWidth = 2.2;
+                        ctx.beginPath(); ctx.moveTo(p.x, p.y);
+                        for (let i = p.trail.length - 1; i >= 0; i--) {
+                            ctx.lineTo(p.trail[i].x + (Math.random()-0.5) * 7, p.trail[i].y + (Math.random()-0.5) * 7);
+                        }
+                        ctx.stroke();
+                        ctx.strokeStyle = 'rgba(255,252,220,0.9)'; ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                    ctx.fillStyle = '#fffbe0';
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 2*Math.PI); ctx.fill();
+                } else if (p.type === 'siege') {
+                    // осадный болт: тяжёлое древко, гранёный наконечник, обмотка
+                    ctx.translate(p.x, p.y); ctx.rotate(ang);
+                    ctx.strokeStyle = '#241a12'; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.moveTo(-11, 0); ctx.lineTo(6, 0); ctx.stroke();
+                    ctx.strokeStyle = '#4a3a28'; ctx.lineWidth = 4.6;
+                    ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-3, 0); ctx.stroke();
+                    ctx.fillStyle = '#9aa0a8';
+                    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(5, -3); ctx.lineTo(5, 3); ctx.closePath(); ctx.fill();
+                    ctx.fillStyle = '#c9c2b4';
+                    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(7.5, -1.4); ctx.lineTo(7.5, 1.4); ctx.closePath(); ctx.fill();
+                } else {
+                    // запасной вариант — тлеющее ядро
+                    ctx.shadowColor = p.color; ctx.shadowBlur = 10;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 2*Math.PI); ctx.fill();
+                }
                 ctx.restore();
             });
             effects.forEach(ef => {
-                if (ef.type==='muzzle') { ctx.fillStyle = ef.color; ctx.beginPath(); ctx.arc(ef.x, ef.y, 8, 0, 2*Math.PI); ctx.fill(); }
-                else if (ef.type==='explosion') { const a = ef.timer/0.5; ctx.fillStyle = `rgba(255,80,0,${a})`; ctx.beginPath(); ctx.arc(ef.x, ef.y, ef.radius*(1-ef.timer/0.5+0.2), 0, 2*Math.PI); ctx.fill(); }
-                else if (ef.type==='spark') { ctx.fillStyle = ef.color; for (let i=0;i<6;i++) ctx.fillRect(ef.x+Math.cos(i*1.05)*8-1, ef.y+Math.sin(i*1.05)*8-1, 3,3); }
+                if (ef.type==='muzzle') {
+                    // вспышка выстрела: 4-лучевая звезда + кольцо отдачи (у Пушки/Осадной — крупнее)
+                    const a = ef.timer/0.15; const r = (ef.big ? 13 : 8) * (0.55 + 0.45*a);
+                    ctx.save(); ctx.translate(ef.x, ef.y);
+                    ctx.globalAlpha = a * 0.9;
+                    ctx.fillStyle = ef.color; ctx.shadowColor = ef.color; ctx.shadowBlur = 9;
+                    for (let i = 0; i < 4; i++) {
+                        ctx.rotate(Math.PI/2);
+                        ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r*0.25, 1.6); ctx.lineTo(r*0.25, -1.6); ctx.closePath(); ctx.fill();
+                    }
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = a * 0.45;
+                    ctx.strokeStyle = ef.color; ctx.lineWidth = 1.6;
+                    ctx.beginPath(); ctx.arc(0, 0, r * 1.5, 0, 2*Math.PI); ctx.stroke();
+                    ctx.restore();
+                }
+                else if (ef.type==='explosion') {
+                    // взрыв Пушки: ядро дыма, огненный шар, ударная волна
+                    const a = ef.timer/0.5, k = 1-a;
+                    ctx.fillStyle = `rgba(26,18,12,${a*0.55})`;
+                    ctx.beginPath(); ctx.arc(ef.x, ef.y, ef.radius*0.5, 0, 2*Math.PI); ctx.fill();
+                    const eg = ctx.createRadialGradient(ef.x, ef.y, 2, ef.x, ef.y, ef.radius*(0.45+k*0.35));
+                    eg.addColorStop(0, `rgba(255,210,90,${a*0.9})`);
+                    eg.addColorStop(0.6, `rgba(255,110,20,${a*0.55})`);
+                    eg.addColorStop(1, 'rgba(120,30,0,0)');
+                    ctx.fillStyle = eg;
+                    ctx.beginPath(); ctx.arc(ef.x, ef.y, ef.radius*(0.45+k*0.35), 0, 2*Math.PI); ctx.fill();
+                    ctx.strokeStyle = `rgba(255,170,70,${a*0.7})`; ctx.lineWidth = 2.5;
+                    ctx.beginPath(); ctx.arc(ef.x, ef.y, ef.radius*k, 0, 2*Math.PI); ctx.stroke();
+                }
+                else if (ef.type==='spark') {
+                    // попадание: расходящиеся лучи + угасающее пятно
+                    const a = ef.timer/0.3;
+                    ctx.save(); ctx.translate(ef.x, ef.y);
+                    ctx.globalAlpha = a;
+                    ctx.strokeStyle = ef.color; ctx.lineWidth = 1.6;
+                    for (let i = 0; i < 6; i++) {
+                        const an = i * 1.047 + 0.4, r1 = 4 + (1-a) * 9;
+                        ctx.beginPath(); ctx.moveTo(Math.cos(an)*3, Math.sin(an)*3); ctx.lineTo(Math.cos(an)*r1, Math.sin(an)*r1); ctx.stroke();
+                    }
+                    ctx.globalAlpha = a * 0.3;
+                    ctx.fillStyle = ef.color;
+                    ctx.beginPath(); ctx.arc(0, 0, 5 + (1-a) * 3, 0, 2*Math.PI); ctx.fill();
+                    ctx.restore();
+                }
                 else if (ef.type==='freeze') { ctx.strokeStyle='#88ccff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(ef.x, ef.y, 22, 0, 2*Math.PI); ctx.stroke(); }
                 else if (ef.type==='multishot') { const a = ef.timer/ef.maxTimer; ctx.strokeStyle=`rgba(255,200,0,${a})`; ctx.lineWidth=2; for (let i=-1;i<=1;i++) { ctx.beginPath(); ctx.moveTo(ef.x, ef.y); ctx.lineTo(ef.x+i*25, ef.y-35); ctx.stroke(); } }
                 else if (ef.type==='lightningBolt') { const a = ef.timer/ef.maxTimer; ctx.strokeStyle=`rgba(255,255,100,${a})`; ctx.lineWidth=3; ctx.shadowColor='#ffaa00'; ctx.shadowBlur=15; ctx.beginPath(); ctx.moveTo(ef.x, 0); let cx=ef.x; for (let y=0;y<ef.y;y+=20) { cx+=(Math.random()-0.5)*30; ctx.lineTo(cx, y); } ctx.lineTo(ef.x, ef.y); ctx.stroke(); ctx.shadowBlur=0; }
@@ -2022,6 +2156,6 @@
         if (loadGame() && lives > 0) { /* сейв жив */ } else resetGame(); // сейв с lives<=0 — мёртвый, начинаем заново
         setHpNumbers(showHpNumbers); // тумблер цифр HP — из настроек
         // отладочный доступ к состоянию (для тестов)
-        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, lives, gold, paused, gameOver, victory, decals: decals.length, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]), tw: towers.map(t=>[t.col,t.row,t.type]), hpNum: showHpNumbers }; } };
+        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, lives, gold, paused, gameOver, victory, decals: decals.length, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]), tw: towers.map(t=>[t.col,t.row,t.type]), hpNum: showHpNumbers }; }, spawn(n, type) { for (let i=0; i<(n||10); i++) enemies.push(new Enemy(type||1, waveNum)); } };
         requestAnimationFrame(loop);
     })();
