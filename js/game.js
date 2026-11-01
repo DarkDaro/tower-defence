@@ -2098,19 +2098,19 @@
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
                     torches.forEach(t => {
-                        const flicker = 0.6 + 0.4 * Math.sin(now * 0.006 + t.offset);
+                        const flicker = 0.75 + 0.25 * Math.sin(now * 0.006 + t.offset);
                         const fy = t.y - t.h - 8;
-                        const R = 130 + flicker*26;
+                        const R = 78 + flicker*12; // нормализовано: было 130+26 — пятно заливало три клетки дороги
                         // световое пятно на земле вокруг основания
                         const gp = ctx.createRadialGradient(t.x, t.y, 4, t.x, t.y, R*0.75);
-                        gp.addColorStop(0, `rgba(255,170,70,${0.26 + flicker*0.10})`);
+                        gp.addColorStop(0, `rgba(255,170,70,${0.14 + flicker*0.05})`);
                         gp.addColorStop(1, 'rgba(255,120,20,0)');
                         ctx.fillStyle = gp;
                         ctx.beginPath(); ctx.ellipse(t.x, t.y, R*0.75, R*0.4, 0, 0, 2*Math.PI); ctx.fill();
                         // сияние пламени
                         const g = ctx.createRadialGradient(t.x, fy, 4, t.x, fy, R);
-                        g.addColorStop(0, `rgba(255,200,90,${0.42 + flicker*0.16})`);
-                        g.addColorStop(0.5, 'rgba(255,140,30,0.16)');
+                        g.addColorStop(0, `rgba(255,200,90,${0.26 + flicker*0.08})`);
+                        g.addColorStop(0.5, 'rgba(255,140,30,0.09)');
                         g.addColorStop(1, 'rgba(255,120,20,0)');
                         ctx.fillStyle = g;
                         ctx.beginPath(); ctx.arc(t.x, fy, R, 0, 2*Math.PI); ctx.fill();
