@@ -844,13 +844,24 @@
         }
 
         class Projectile {
-            constructor(x,y,target,type,cfg,chain=false) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||2.5; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
+            constructor(x,y,target,type,cfg,chain=false) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||2.5; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; this.noFly=(type==='cannon'||type==='siege'); }
             update(dt) {
                 if (this.target && this.target.alive && !this.target.invisible) { this.tx = this.target.x; this.ty = this.target.y; }
                 if (!this.target || !this.target.alive || this.target.invisible) {
-                    // AOE-снаряд взрывается в последней точке цели, обычный исчезает
-                    if (this.aoe > 0 && this.tx !== undefined) { this.hit(); return; }
-                    this.alive=false; return;
+                    // ретаргет: выстрел не пропадает — снаряд переводится на ближайшего
+                    // живого врага рядом с прежней точкой (баланс: без этого фокус-огонь
+                    // терял ~25% урона в трупы переднего врага)
+                    const rx = this.tx !== undefined ? this.tx : this.x, ry = this.ty !== undefined ? this.ty : this.y;
+                    let best = null, bestD = 150;
+                    for (const e of enemies) {
+                        if (!e.alive || e.invisible) continue;
+                        if (this.noFly && e.flying) continue;
+                        const d = Math.hypot(rx - e.x, ry - e.y);
+                        if (d < bestD) { bestD = d; best = e; }
+                    }
+                    if (best) { this.target = best; this.tx = best.x; this.ty = best.y; }
+                    else if (this.aoe > 0 && this.tx !== undefined) { this.hit(); return; } // AOE рванёт в последней точке
+                    else { this.alive = false; return; }
                 }
                 // шлейф: последние позиции
                 this.trail.push({x:this.x, y:this.y});
@@ -900,9 +911,11 @@
 
         // ---------- WAVES ----------
         const waves = [
-            [{type:0,count:20}],
-            [{type:1,count:24}],
-            [{type:0,count:16},{type:2,count:12}],
+            // волны 1-3 урезаны по замеру: 3 лучника (весь старт-бюджет) убивали лишь 5 из 12
+            // (стрельба фокусом на переднего + перелёт), 7 протечек = поражение. 8 кабанов ≈ 3 протечки.
+            [{type:0,count:8}],
+            [{type:1,count:12}], // волки 105px/s: при 18 шт. массовая протечка даже с добором башен
+            [{type:0,count:12},{type:2,count:9}],
             [{type:1,count:20},{type:3,count:16}],
             [{type:2,count:16},{type:4,count:12},{boss:0}],
             [{type:0,count:24},{type:3,count:16},{type:5,count:12},{type:10,count:8}],
@@ -1025,7 +1038,9 @@
             if (!waveActive || !waveSpawningComplete) return;
             if (enemies.every(e => !e.alive)) {
                 waveActive = false;
-                const bonusGold = Math.max(0, Math.floor(20 - waveElapsed));
+                // бонус за скорость: на длинных петлях карты волны идут ~90с —
+                // старый порог 20с не срабатывал никогда; теперь быстрая зачистка всё же вознаграждается
+                const bonusGold = Math.max(0, Math.floor(30 - waveElapsed * 0.25));
                 if (bonusGold > 0) {
                     gold += bonusGold;
                     floatingTexts.push({ x: VW/2, y: 100, text: `+${bonusGold} бонус!`, life: 1.5, vy: -30 });
