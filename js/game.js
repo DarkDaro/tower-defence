@@ -334,11 +334,28 @@
             return c;
         }
         // Существо: объёмное тело + глаза + черты по архетипу
-        function paintCreature(g, s, d, kind, isBoss) {
-            const cx = s/2, cy = s/2 + s*0.04, R = s*0.30;
+        function paintCreature(g, s, d, kind, isBoss, frame = 0) {
+            const cx = s/2, cy0 = s/2 + s*0.04, R = s*0.30;
+            const ph = (frame / 4) * Math.PI * 2; // фаза цикла шага/взмаха
+            const bob = (kind === 'wyrm' || kind === 'ghost' || kind === 'wisp') ? Math.sin(ph) * R * 0.12 : 0;
+            const flap = kind === 'wyrm' ? Math.sin(ph) * R * 0.45 : 0;
+            const cy = cy0 - bob;
             // каменная площадка-тень
             g.fillStyle = 'rgba(0,0,0,0.35)';
             g.beginPath(); g.ellipse(cx, s*0.82, R*0.95, R*0.32, 0, 0, 2*Math.PI); g.fill();
+            // ноги наземных: диагональный шаг
+            if (kind !== 'wyrm' && kind !== 'ghost' && kind !== 'wisp' && kind !== 'spider') {
+                g.strokeStyle = hexShade(d.color, -0.6);
+                g.lineWidth = s*0.05; g.lineCap = 'round';
+                for (const side of [-1, 1]) for (let i = 0; i < 2; i++) {
+                    const sw = Math.sin(ph + i * Math.PI + (side > 0 ? Math.PI : 0));
+                    const lx = cx + side * R * (0.42 + i * 0.28);
+                    g.beginPath();
+                    g.moveTo(lx, cy + R*0.5);
+                    g.lineTo(lx + sw * R * 0.35, cy + R * (1.15 - Math.abs(sw) * 0.22));
+                    g.stroke();
+                }
+            }
             if (kind === 'ghost') g.globalAlpha = 0.75;
             // крылья (летуны и призраки)
             if (kind === 'wyrm' || kind === 'ghost') {
@@ -346,8 +363,8 @@
                 for (const side of [-1, 1]) {
                     g.beginPath();
                     g.moveTo(cx + side*R*0.5, cy - R*0.3);
-                    g.quadraticCurveTo(cx + side*R*1.6, cy - R*1.15, cx + side*R*1.75, cy - R*0.1);
-                    g.quadraticCurveTo(cx + side*R*1.1, cy - R*0.15, cx + side*R*0.55, cy + R*0.25);
+                    g.quadraticCurveTo(cx + side*R*1.6, cy - R*1.15 - flap, cx + side*R*1.75, cy - R*0.1 - flap*0.7);
+                    g.quadraticCurveTo(cx + side*R*1.1, cy - R*0.15 - flap*0.3, cx + side*R*0.55, cy + R*0.25);
                     g.closePath(); g.fill();
                 }
             }
@@ -371,8 +388,9 @@
                 g.strokeStyle = hexShade(d.color, -0.55); g.lineWidth = s*0.025; g.lineCap = 'round';
                 for (const side of [-1,1]) for (let i=0;i<3;i++) {
                     const ay = cy - R*0.5 + i*R*0.5;
+                    const wave = Math.sin(ph + i*2.1 + (side > 0 ? Math.PI : 0)) * R*0.22;
                     g.beginPath(); g.moveTo(cx + side*R*0.7, ay);
-                    g.quadraticCurveTo(cx + side*R*1.5, ay - R*0.45, cx + side*R*1.45, ay + R*0.35);
+                    g.quadraticCurveTo(cx + side*R*1.5, ay - R*0.45 - wave, cx + side*R*1.45, ay + R*0.35 - wave*0.5);
                     g.stroke();
                 }
             }
@@ -572,10 +590,11 @@
             { name:'Ходячий ветер', emoji:'💨', hp:1600, speed:55, armor:8, resist:{}, reward:240, color:'#88ddcc', size:1.6, auraSpeed:1.4, auraRadius:150, canInvuln:true, flying:true }
         ];
         // спрайты существ (нужны enemyBase/bossTypes)
-        const enemySprites = enemyBase.map(d => makeSprite(64, (g,s) => paintCreature(g, s, d, creatureKind(d), false)));
-        const bossSprites = bossTypes.map(d => makeSprite(80, (g,s) => paintCreature(g, s, d, creatureKind(d), true)));
+        const ANIM_FRAMES = 4; // кадры цикла шага/взмаха на существо
+        const enemySprites = enemyBase.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(80, (g,s) => paintCreature(g, s, d, creatureKind(d), false, f))));
+        const bossSprites = bossTypes.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(98, (g,s) => paintCreature(g, s, d, creatureKind(d), true, f))));
         // dataURL спрайтов считаем ОДИН раз (иначе 24 toDataURL каждый кадр)
-        const killIconUrls = [...enemySprites, ...bossSprites].map(c => c.toDataURL());
+        const killIconUrls = [...enemySprites, ...bossSprites].map(fr => fr[0].toDataURL());
 
         function getDifficultyMultiplier(wave) {
             // плавная экспонента вместо ступеней: волна 10 ≈ ×2.0, 20 ≈ ×4.3, 30 ≈ ×9.3
@@ -684,6 +703,7 @@
                     const step = Math.min(effSpeed * dt, dist);
                     this.x += (dx / dist) * step;
                     this.y += (dy / dist) * step;
+                    this.animT = (this.animT || 0) + (step / CELL) * (this.flying ? 1.5 : 1); // фаза анимации от пройденного пути
                     if (step >= dist) this.pathIdx++;
                 }
                 if (this.healer) {
@@ -1535,9 +1555,10 @@
                     ctx.fillStyle = 'rgba(0,0,0,0.3)';
                     ctx.beginPath(); ctx.ellipse(e.x, e.y + e.size*8, e.size*8, e.size*3.5, 0, 0, 2*Math.PI); ctx.fill();
                 }
-                const spr = e.isBoss ? bossSprites[e.typeIndex] : enemySprites[e.typeIndex];
+                const frames = e.isBoss ? bossSprites[e.typeIndex] : enemySprites[e.typeIndex];
+                const spr = frames[Math.floor((e.animT || 0) * 6) % frames.length];
                 if (spr) {
-                    const w = e.size * 44;
+                    const w = e.size * 50;
                     ctx.drawImage(spr, ex - w/2, ey - w/2, w, w);
                 }
                 if (e.hp < e.maxHp) {
