@@ -1,79 +1,121 @@
     (function() {
-        // ---------- AUDIO ENGINE ----------
+        // ---------- AUDIO ENGINE v2 (процедурный синтез: слои, фильтры, компрессор) ----------
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         let audioCtx = null;
         let soundEnabled = true;
         let masterGain = null;
         let volume = 0.8;
+        let noiseBuf = null; // общий буфер белого шума
         function initAudio() {
             if (!audioCtx) {
                 try {
                     audioCtx = new AudioCtx();
                     masterGain = audioCtx.createGain();
                     masterGain.gain.value = volume * volume;
-                    masterGain.connect(audioCtx.destination);
+                    // компрессор склеивает слои и убирает перегруз на массовых звуках
+                    const comp = audioCtx.createDynamicsCompressor();
+                    comp.threshold.value = -18; comp.knee.value = 25;
+                    comp.ratio.value = 6; comp.attack.value = 0.004; comp.release.value = 0.18;
+                    masterGain.connect(comp); comp.connect(audioCtx.destination);
+                    // общий 1-секундный буфер шума (не создаём на каждый звук)
+                    noiseBuf = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
+                    const d = noiseBuf.getChannelData(0);
+                    for (let i=0;i<d.length;i++) d[i] = Math.random()*2 - 1;
                 } catch(e) { console.warn('Audio not supported'); }
             }
             // Браузер требует "разбудить" контекст жестом пользователя
             if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         }
-        // Инициализация с любого первого взаимодействия, а не только клика по canvas:
-        // иначе кнопки верхнего меню молчат
         function audioInitOnce() { initAudio(); document.removeEventListener('pointerdown', audioInitOnce); document.removeEventListener('keydown', audioInitOnce); }
         document.addEventListener('pointerdown', audioInitOnce);
         document.addEventListener('keydown', audioInitOnce);
         // Троттлинг: при 30+ врагах звуки выстрелов сливаются в треск
         let lastShootSound = 0;
         const SHOOT_SOUND_MIN_GAP = 0.035;
+        // Тон: для грубых волн срезаем верх низкочастотным фильтром, чтобы не звенело
         function playTone(freq, dur, type='sine', vol=0.08, attack=0.005, freqEnd=null) {
             if (!audioCtx || !soundEnabled) return;
             try {
+                const now = audioCtx.currentTime;
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
-                const now = audioCtx.currentTime;
                 osc.type = type;
                 osc.frequency.setValueAtTime(freq, now);
-                if (freqEnd !== null) osc.frequency.exponentialRampToValueAtTime(freqEnd, now + dur);
-                gain.gain.setValueAtTime(0, now);
+                if (freqEnd !== null && freqEnd > 0) osc.frequency.exponentialRampToValueAtTime(freqEnd, now + dur);
+                gain.gain.setValueAtTime(0.0001, now);
                 gain.gain.linearRampToValueAtTime(vol, now + attack);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-                osc.connect(gain);
-                gain.connect(masterGain || audioCtx.destination);
-                osc.start(now);
-                osc.stop(now + dur);
+                let node = osc;
+                if (type === 'sawtooth' || type === 'square') {
+                    const lp = audioCtx.createBiquadFilter();
+                    lp.type = 'lowpass'; lp.frequency.value = 2200; lp.Q.value = 0.6;
+                    osc.connect(lp); node = lp;
+                }
+                node.connect(gain); gain.connect(masterGain || audioCtx.destination);
+                osc.start(now); osc.stop(now + dur + 0.02);
             } catch(e) {}
         }
         function playChord(freqs, dur, type='sine', vol=0.06, stagger=0) {
             if (!audioCtx || !soundEnabled) return;
             freqs.forEach((f, i) => playTone(f, dur, type, vol, 0.01 + i * stagger));
         }
-        function playNoise(dur, vol=0.08, filterFreq=800) {
-            if (!audioCtx || !soundEnabled) return;
+        // Шум с движущимся фильтром: whoosh/boom/crackle задаётся диапазоном частот
+        function playNoise(dur, vol=0.08, filterFreq=800, filterEnd=null, ftype='lowpass', attack=0.005) {
+            if (!audioCtx || !soundEnabled || !noiseBuf) return;
             try {
-                const bufSize = Math.floor(audioCtx.sampleRate * dur);
-                const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
-                const data = buf.getChannelData(0);
-                for (let i=0; i<bufSize; i++) data[i] = (Math.random()*2 - 1) * Math.pow(1 - i/bufSize, 2);
+                const now = audioCtx.currentTime;
                 const src = audioCtx.createBufferSource();
-                src.buffer = buf;
-                const filter = audioCtx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = filterFreq;
-                const gain = audioCtx.createGain();
-                gain.gain.value = vol;
-                src.connect(filter); filter.connect(gain); gain.connect(masterGain || audioCtx.destination);
-                src.start();
+                src.buffer = noiseBuf; src.loop = true;
+                const f = audioCtx.createBiquadFilter();
+                f.type = ftype; f.frequency.setValueAtTime(filterFreq, now);
+                if (filterEnd !== null) f.frequency.exponentialRampToValueAtTime(Math.max(30, filterEnd), now + dur);
+                const g = audioCtx.createGain();
+                g.gain.setValueAtTime(0.0001, now);
+                g.gain.linearRampToValueAtTime(vol, now + attack);
+                g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+                src.connect(f); f.connect(g); g.connect(masterGain || audioCtx.destination);
+                src.start(now); src.stop(now + dur + 0.02);
             } catch(e) {}
         }
-        function playError() { playTone(180, 0.15, 'sawtooth', 0.08, 0.005, 120); }
-        function playClick() { playTone(650, 0.05, 'triangle', 0.035, 0.002, 820); }
+        // Серия коротких щелчков: искры, треск огня, осколки
+        function playCrackle(dur, vol=0.02, filterFreq=2200) {
+            if (!audioCtx || !soundEnabled) return;
+            const n = Math.floor(dur / 0.03);
+            for (let i=0;i<n;i++) {
+                setTimeout(() => playNoise(0.02, vol * (0.5 + Math.random()*0.5), filterFreq, null, 'highpass', 0.001), i*30 + Math.random()*15);
+            }
+        }
+        function playError() { playTone(150, 0.18, 'square', 0.055, 0.005, 110); playTone(98, 0.18, 'sine', 0.06, 0.005, 80); }
+        function playClick() { playTone(900, 0.03, 'triangle', 0.03, 0.001, 1400); playNoise(0.015, 0.02, 4000, null, 'highpass', 0.001); }
         function playShoot(type) {
-            switch(type) {                case 'archer': playTone(1400, 0.04, 'triangle', 0.04, 0.002, 900); break;
-                case 'cannon': playNoise(0.15, 0.12, 400); playTone(60, 0.15, 'sine', 0.1, 0.005, 40); break;
-                case 'ice': playChord([800, 1200], 0.12, 'sine', 0.05, 0.01); break;
-                case 'magic': playChord([400, 600, 900], 0.18, 'triangle', 0.04, 0.02); break;
-                case 'poison': playTone(300, 0.1, 'sine', 0.05, 0.005, 200); playNoise(0.08, 0.03, 600); break;
-                case 'lightning': playTone(2000, 0.05, 'sawtooth', 0.04, 0.001, 400); break;
+            switch(type) {
+                case 'archer': // щелчок тетивы + свист
+                    playTone(1500, 0.05, 'triangle', 0.045, 0.001, 700);
+                    playNoise(0.07, 0.025, 3000, 900, 'bandpass', 0.002);
+                    break;
+                case 'cannon': // пороховой выстрел: удар + давление
+                    playNoise(0.22, 0.14, 900, 90, 'lowpass', 0.004);
+                    playTone(75, 0.22, 'sine', 0.12, 0.004, 32);
+                    playNoise(0.05, 0.05, 2500, null, 'highpass', 0.001);
+                    break;
+                case 'ice': // стеклянный звон
+                    playTone(1150, 0.12, 'sine', 0.04, 0.002, 950);
+                    playTone(1720, 0.09, 'sine', 0.025, 0.002, 1400);
+                    playNoise(0.09, 0.018, 5200, 2600, 'highpass', 0.003);
+                    break;
+                case 'magic': // нарастающее мерцание
+                    playTone(420, 0.16, 'triangle', 0.035, 0.01, 760);
+                    playTone(630, 0.14, 'sine', 0.03, 0.02, 1140);
+                    playTone(1260, 0.1, 'sine', 0.012, 0.03, 1600);
+                    break;
+                case 'poison': // плевок
+                    playTone(310, 0.09, 'sine', 0.05, 0.004, 150);
+                    playNoise(0.08, 0.03, 900, 250, 'lowpass', 0.003);
+                    break;
+                case 'lightning': // электрический разряд
+                    playTone(2400, 0.06, 'sawtooth', 0.035, 0.001, 320);
+                    playNoise(0.08, 0.035, 3400, 700, 'highpass', 0.001);
+                    break;
                 default: playTone(800, 0.06, 'sine', 0.05);
             }
         }
@@ -83,20 +125,75 @@
             lastShootSound = now;
             playShoot(type);
         }
-        function playExplosion() { playNoise(0.3, 0.1, 250); playTone(50, 0.3, 'sine', 0.08, 0.005, 30); }
-        function playLightning() { playNoise(0.5, 0.06, 1200); playChord([150, 300, 600], 0.5, 'sawtooth', 0.04, 0.03); }
-        function playFrost() { playChord([400, 600, 800, 1200], 0.6, 'sine', 0.04, 0.05); playNoise(0.4, 0.03, 2000); }
-        function playFire() { playNoise(0.7, 0.08, 300); playTone(80, 0.7, 'sawtooth', 0.05, 0.01, 40); }
-        function playBuild() { playChord([360, 540, 720], 0.18, 'triangle', 0.05, 0.02); playTone(180, 0.1, 'sine', 0.06, 0.005, 120); }
-        function playUpgrade() { playChord([520, 780, 1040, 1560], 0.25, 'sine', 0.05, 0.04); }
-        function playSell() { playTone(900, 0.08, 'sine', 0.05, 0.002, 500); playTone(1300, 0.12, 'sine', 0.04, 0.03, 700); }
-        function playWaveStart() { playChord([260, 390, 520], 0.35, 'triangle', 0.06, 0.06); playTone(130, 0.3, 'sine', 0.07, 0.01, 90); }
-        function playVictory() { playChord([523, 659, 784], 0.4, 'triangle', 0.07, 0.1); setTimeout(() => playChord([659, 784, 1047], 0.6, 'triangle', 0.07, 0.1), 250); }
-        function playDefeat() { playTone(220, 0.5, 'sawtooth', 0.08, 0.02, 110); playTone(110, 0.9, 'sine', 0.08, 0.02, 55); }
-        function playLeak() { playTone(320, 0.2, 'square', 0.06, 0.005, 180); playNoise(0.12, 0.05, 500); }
-        function playBossSpawn() { playTone(70, 0.8, 'sawtooth', 0.1, 0.03, 45); playNoise(0.5, 0.06, 200); playTone(140, 0.6, 'square', 0.04, 0.05, 90); }
-        function playFreeze() { playChord([1400, 1900, 2500], 0.2, 'sine', 0.035, 0.01); playNoise(0.15, 0.03, 3000); }
-        function playPoisonHit() { playTone(240, 0.12, 'sine', 0.04, 0.005, 160); playNoise(0.06, 0.025, 700); }
+        function playExplosion() { // бабах: суб-бас + падающий шум + осколки
+            playNoise(0.55, 0.16, 1100, 60, 'lowpass', 0.005);
+            playTone(58, 0.5, 'sine', 0.14, 0.005, 26);
+            playCrackle(0.4, 0.02, 2600);
+        }
+        function playLightning() { // треск разряда + раскат грома
+            playNoise(0.18, 0.09, 4200, 500, 'highpass', 0.001);
+            playTone(1900, 0.08, 'sawtooth', 0.05, 0.001, 140);
+            playNoise(0.7, 0.07, 700, 90, 'lowpass', 0.02);
+            playTone(65, 0.7, 'sine', 0.08, 0.02, 38);
+        }
+        function playFrost() { // ледяная вьюга + стылое сияние
+            playChord([880, 1175, 1560, 2090], 0.5, 'sine', 0.03, 0.045);
+            playNoise(0.8, 0.05, 3600, 1300, 'bandpass', 0.06);
+            playTone(220, 0.5, 'sine', 0.045, 0.02, 165);
+        }
+        function playFire() { // огненный гул + треск
+            playNoise(0.9, 0.09, 240, 1400, 'bandpass', 0.05);
+            playTone(85, 0.8, 'sawtooth', 0.05, 0.02, 42);
+            playCrackle(0.8, 0.022, 2200);
+        }
+        function playBuild() { // камень на камень
+            playTone(170, 0.09, 'sine', 0.08, 0.003, 95);
+            playNoise(0.06, 0.05, 420, 180, 'lowpass', 0.002);
+            playTone(510, 0.06, 'triangle', 0.03, 0.01, 640);
+        }
+        function playUpgrade() { // восторженная лесенка
+            playChord([523, 659, 784, 1047], 0.16, 'triangle', 0.04, 0.035);
+            playTone(2093, 0.18, 'sine', 0.02, 0.06, 1568);
+        }
+        function playSell() { // звон монет
+            playTone(1245, 0.07, 'sine', 0.045, 0.001, 1100);
+            setTimeout(() => playTone(1865, 0.1, 'sine', 0.04, 0.001, 1600), 70);
+        }
+        function playWaveStart() { // боевой рог
+            playTone(196, 0.55, 'sawtooth', 0.07, 0.09, 185);
+            playTone(294, 0.5, 'sawtooth', 0.045, 0.11, 277);
+            playTone(98, 0.6, 'sine', 0.08, 0.05, 92);
+            playNoise(0.5, 0.02, 600, 300, 'bandpass', 0.08);
+        }
+        function playVictory() { // фанфары
+            const fan = [523, 659, 784, 1047];
+            fan.forEach((f, i) => setTimeout(() => { playTone(f, 0.22, 'triangle', 0.06, 0.01); playTone(f*2, 0.18, 'sine', 0.02, 0.01); }, i*140));
+            setTimeout(() => playChord([523, 659, 784, 1047], 0.7, 'triangle', 0.05, 0.02), 620);
+        }
+        function playDefeat() { // минорный спад
+            [330, 262, 220, 165].forEach((f, i) => setTimeout(() => playTone(f, 0.5, 'sawtooth', 0.05, 0.02, f*0.94), i*260));
+            playTone(82, 1.6, 'sine', 0.08, 0.04, 41);
+        }
+        function playLeak() { // прорыв: тревога
+            playTone(392, 0.14, 'square', 0.05, 0.004, 350);
+            setTimeout(() => playTone(311, 0.2, 'square', 0.05, 0.004, 260), 130);
+            playNoise(0.15, 0.04, 800, 250, 'lowpass', 0.003);
+        }
+        function playBossSpawn() { // рёв: гроулинг-бас + рокот
+            playTone(72, 1.0, 'sawtooth', 0.11, 0.04, 40);
+            playTone(108, 0.8, 'square', 0.05, 0.06, 62);
+            playNoise(1.0, 0.07, 380, 90, 'lowpass', 0.03);
+            playCrackle(0.5, 0.015, 900);
+        }
+        function playFreeze() { // хруст льда
+            playChord([1568, 2093, 2637], 0.18, 'sine', 0.03, 0.012);
+            playNoise(0.2, 0.03, 5200, 2000, 'highpass', 0.002);
+            playTone(1046, 0.12, 'sine', 0.02, 0.002, 880);
+        }
+        function playPoisonHit() { // шипение
+            playNoise(0.14, 0.035, 1300, 300, 'lowpass', 0.002);
+            playTone(230, 0.1, 'sine', 0.04, 0.004, 140);
+        }
 
         let toastTimer = null;
         function showToast(msg) {
@@ -110,6 +207,10 @@
         // ---------- CANVAS ----------
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
+        const VW = 1792, VH = 1008;             // логический размер поля
+        const DPR = Math.min(2, window.devicePixelRatio || 1); // плотность пикселей экрана
+        canvas.width = VW * DPR; canvas.height = VH * DPR;     // физический буфер (чёткость)
+        ctx.imageSmoothingQuality = 'high';
         const CELL = 56;
         const COLS = 32;
         const ROWS = 18;
@@ -185,7 +286,7 @@
         }
         // банки тумана для модификатора "Туман"
         const fogBanks = [];
-        for (let i=0; i<8; i++) fogBanks.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, r: 130+Math.random()*170, vx: (Math.random()-0.5)*22, vy: (Math.random()-0.5)*14, ph: Math.random()*Math.PI*2 });
+        for (let i=0; i<8; i++) fogBanks.push({ x: Math.random()*VW, y: Math.random()*VH, r: 130+Math.random()*170, vx: (Math.random()-0.5)*22, vy: (Math.random()-0.5)*14, ph: Math.random()*Math.PI*2 });
 
         // ---------- TOWERS ----------
         const towerDefs = {
@@ -225,10 +326,11 @@
             else { r *= (1+k); g *= (1+k); b *= (1+k); }
             return `rgb(${r|0},${g|0},${b|0})`;
         }
+        const SPRITE_Q = 2; // спрайты рендерятся в 2х разрешении и уменьшаются при отрисовке
         function makeSprite(size, paint) {
             const c = document.createElement('canvas');
-            c.width = size; c.height = size;
-            paint(c.getContext('2d'), size);
+            c.width = size*SPRITE_Q; c.height = size*SPRITE_Q;
+            paint(c.getContext('2d'), size*SPRITE_Q);
             return c;
         }
         // Существо: объёмное тело + глаза + черты по архетипу
@@ -872,7 +974,7 @@
                 const bonusGold = Math.max(0, Math.floor(20 - waveElapsed));
                 if (bonusGold > 0) {
                     gold += bonusGold;
-                    floatingTexts.push({ x: canvas.width/2, y: 100, text: `+${bonusGold} бонус!`, life: 1.5, vy: -30 });
+                    floatingTexts.push({ x: VW/2, y: 100, text: `+${bonusGold} бонус!`, life: 1.5, vy: -30 });
                 }
                 stats.wavesCompleted++;
                 waveNum++;
@@ -901,7 +1003,7 @@
             mana-=300; lightningCD=15; playLightning();
             const dmg = Math.floor(200 * (1 + waveNum * 0.08));
             // Гнев небес: залп ветвящихся молний + вспышка
-            for (let i=0; i<16; i++) { const sx=Math.random()*canvas.width, sy=100+Math.random()*(canvas.height-200);
+            for (let i=0; i<16; i++) { const sx=Math.random()*VW, sy=100+Math.random()*(VH-200);
                 effects.push({type:'lightningStrike', x:sx, y:sy, timer:0.45, maxTimer:0.45, seed:Math.random()*7});
                 effects.push({type:'strikeGlow', x:sx, y:sy, timer:0.55, maxTimer:0.55});
             }
@@ -914,7 +1016,7 @@
                     for (let i=0;i<10;i++) { const a=Math.random()*Math.PI*2, s=60+Math.random()*90; particles.push({x:e.x, y:e.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0.5+Math.random()*0.4, color:'#ffdd00'}); }
                 }
             });
-            for (let i=0; i<35; i++) particles.push({x:Math.random()*canvas.width, y:0, vx:0, vy:100+Math.random()*140, life:1.0+Math.random()*0.5, color:'#ffcc44'});
+            for (let i=0; i<35; i++) particles.push({x:Math.random()*VW, y:0, vx:0, vy:100+Math.random()*140, life:1.0+Math.random()*0.5, color:'#ffcc44'});
         }
         function castFrost() {
             if (paused || gameOver || victory) return;
@@ -922,17 +1024,17 @@
             if (mana<400) { playError(); showToast('Нужно 400 маны'); return; }
             mana-=400; frostCD=18; playFrost();
             const dmg = Math.floor(60 * (1 + waveNum * 0.08));
-            effects.push({type:'frostSpread', x:canvas.width/2, y:canvas.height/2, maxRadius:1150, timer:1.1, maxTimer:1.1});
+            effects.push({type:'frostSpread', x:VW/2, y:VH/2, maxRadius:1150, timer:1.1, maxTimer:1.1});
             effects.push({type:'spellTint', color:'150,210,255', timer:0.7, maxTimer:0.7});
             // осколки льда с неба + морозные пятна
-            for (let i=0; i<14; i++) effects.push({type:'iceShard', x:Math.random()*canvas.width, y:-40-Math.random()*200, vx:60+Math.random()*80, vy:520+Math.random()*160, rot:Math.random()*2-1, timer:1.4, maxTimer:1.4});
+            for (let i=0; i<14; i++) effects.push({type:'iceShard', x:Math.random()*VW, y:-40-Math.random()*200, vx:60+Math.random()*80, vy:520+Math.random()*160, rot:Math.random()*2-1, timer:1.4, maxTimer:1.4});
             effects.push({type:'frostEdge', timer:2.2, maxTimer:2.2});
-            for (let i=0; i<10; i++) effects.push({type:'frostPatch', x:Math.random()*canvas.width, y:Math.random()*canvas.height, r:50+Math.random()*70, timer:4, maxTimer:4});
+            for (let i=0; i<10; i++) effects.push({type:'frostPatch', x:Math.random()*VW, y:Math.random()*VH, r:50+Math.random()*70, timer:4, maxTimer:4});
             enemies.forEach(e=>{ if(e.alive && !e.invisible) { e.applySlow(0.05, 6); e.applyFreeze(2); e.takeDamage(dmg, 'ice');
                 effects.push({type:'frostRing', x:e.x, y:e.y, maxRadius:60, timer:0.6, maxTimer:0.6});
                 for (let i=0;i<8;i++) { const a=Math.random()*Math.PI*2, s=40+Math.random()*60; particles.push({x:e.x, y:e.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0.9, color:'#aaddff'}); }
             } });
-            for (let i=0; i<45; i++) particles.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, vx:(Math.random()-0.5)*30, vy:20+Math.random()*40, life:1.5+Math.random()*1.2, color:'rgba(190,225,255,0.85)'});
+            for (let i=0; i<45; i++) particles.push({x:Math.random()*VW, y:Math.random()*VH, vx:(Math.random()-0.5)*30, vy:20+Math.random()*40, life:1.5+Math.random()*1.2, color:'rgba(190,225,255,0.85)'});
         }
         function castFireRain() {
             if (paused || gameOver || victory) return;
@@ -941,15 +1043,15 @@
             mana-=500; fireRainCD=22; playFire();
             const dmg = Math.floor(150 * (1 + waveNum * 0.08));
             // Метеоритный дождь: больше снарядов + выжженная земля
-            for (let i=0; i<30; i++) effects.push({type:'fireballFall', x:Math.random()*canvas.width, y:0, targetY:100+Math.random()*(canvas.height-200), timer:0.8+i*0.02, maxTimer:0.8+i*0.02, w:i});
+            for (let i=0; i<30; i++) effects.push({type:'fireballFall', x:Math.random()*VW, y:0, targetY:100+Math.random()*(VH-200), timer:0.8+i*0.02, maxTimer:0.8+i*0.02, w:i});
             effects.push({type:'spellTint', color:'255,100,50', timer:0.8, maxTimer:0.8});
-            for (let i=0; i<12; i++) effects.push({type:'scorch', x:Math.random()*canvas.width, y:Math.random()*canvas.height, r:34+Math.random()*46, timer:5, maxTimer:5});
+            for (let i=0; i<12; i++) effects.push({type:'scorch', x:Math.random()*VW, y:Math.random()*VH, r:34+Math.random()*46, timer:5, maxTimer:5});
             effects.push({type:'spellTint', color:'255,100,50', timer:0.7, maxTimer:0.7});
             enemies.forEach(e=>{ if(e.alive && !e.invisible) { e.takeDamage(dmg, 'fire'); e.applyDot(Math.round(20 * (1 + waveNum * 0.06)), 3);
                 effects.push({type:'fireExplosion', x:e.x, y:e.y, timer:0.5, maxTimer:0.5});
                 for (let i=0;i<10;i++) { const a=Math.random()*Math.PI*2, s=50+Math.random()*80; particles.push({x:e.x, y:e.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0.6+Math.random()*0.4, color:'#ff4400'}); }
             } });
-            for (let i=0; i<25; i++) particles.push({x:Math.random()*canvas.width, y:0, vx:(Math.random()-0.5)*40, vy:100+Math.random()*150, life:0.8+Math.random()*0.4, color:'#ff6600'});
+            for (let i=0; i<25; i++) particles.push({x:Math.random()*VW, y:0, vx:(Math.random()-0.5)*40, vy:100+Math.random()*150, life:0.8+Math.random()*0.4, color:'#ff6600'});
         }
 
         // UI
@@ -1187,7 +1289,7 @@
         canvas.addEventListener('click', (e) => {
             if (paused || gameOver || victory) return;
             const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+            const scaleX = VW / rect.width, scaleY = VH / rect.height;
             const mx = (e.clientX - rect.left) * scaleX, my = (e.clientY - rect.top) * scaleY;
             const col = Math.floor(mx / CELL), row = Math.floor(my / CELL);
             if (col<0||col>=COLS||row<0||row>=ROWS) return;
@@ -1207,7 +1309,7 @@
 
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+            const scaleX = VW / rect.width, scaleY = VH / rect.height;
             const mx = (e.clientX - rect.left) * scaleX, my = (e.clientY - rect.top) * scaleY;
             hoverCol = Math.floor(mx / CELL);
             hoverRow = Math.floor(my / CELL);
@@ -1216,7 +1318,8 @@
 
         // Отрисовка
         function drawScene(now) {
-            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.setTransform(DPR,0,0,DPR,0,0); // логические координаты при HiDPI-буфере
+            ctx.clearRect(0,0,VW,VH);
             ctx.save();
             if (screenShake > 0) {
                 const shakeX = (Math.random() - 0.5) * screenShake * 20;
@@ -1325,7 +1428,7 @@
                     ctx.strokeStyle = `rgba(255,200,100,${0.15 + pulse*0.1})`; ctx.lineWidth=1; ctx.stroke();
                 }
                 const spr = towerSprites[t.type];
-                if (spr) ctx.drawImage(spr, x - spr.width*0.65, y - spr.height*0.72, spr.width*1.3, spr.height*1.3);
+                if (spr) ctx.drawImage(spr, x - spr.width*0.65/SPRITE_Q, y - spr.height*0.72/SPRITE_Q, spr.width*1.3/SPRITE_Q, spr.height*1.3/SPRITE_Q);
                 ctx.fillStyle='#ffaa00'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
                 for (let i=0;i<t.level;i++) ctx.fillText('★', x-16 + i*11, y-24);
                 if (selectedTower===t) {
@@ -1475,20 +1578,20 @@
                 }
                 else if (ef.type==='frostEdge') {
                     const a = ef.timer/ef.maxTimer;
-                    const eg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                    const eg = ctx.createLinearGradient(0, 0, 0, VH);
                     eg.addColorStop(0, `rgba(190,230,255,${a*0.4})`);
                     eg.addColorStop(0.18, 'rgba(190,230,255,0)');
                     eg.addColorStop(0.82, 'rgba(190,230,255,0)');
                     eg.addColorStop(1, `rgba(190,230,255,${a*0.4})`);
-                    ctx.fillStyle = eg; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    const eg2 = ctx.createLinearGradient(0, 0, canvas.width, 0);
+                    ctx.fillStyle = eg; ctx.fillRect(0, 0, VW, VH);
+                    const eg2 = ctx.createLinearGradient(0, 0, VW, 0);
                     eg2.addColorStop(0, `rgba(190,230,255,${a*0.35})`);
                     eg2.addColorStop(0.14, 'rgba(190,230,255,0)');
                     eg2.addColorStop(0.86, 'rgba(190,230,255,0)');
                     eg2.addColorStop(1, `rgba(190,230,255,${a*0.35})`);
-                    ctx.fillStyle = eg2; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = eg2; ctx.fillRect(0, 0, VW, VH);
                 }
-                else if (ef.type==='spellTint') { const a = ef.timer/ef.maxTimer; ctx.fillStyle=`rgba(${ef.color},${a*0.08})`; ctx.fillRect(0,0,canvas.width,canvas.height); }
+                else if (ef.type==='spellTint') { const a = ef.timer/ef.maxTimer; ctx.fillStyle=`rgba(${ef.color},${a*0.08})`; ctx.fillRect(0,0,VW,VH); }
             });
             particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life*0.9; ctx.fillRect(p.x-2, p.y-2, 4, 4); ctx.globalAlpha=1; });
             floatingTexts.forEach(t => {
@@ -1507,7 +1610,7 @@
             if (activeMod && (activeMod.id === 'night' || activeMod.id === 'fog')) {
                 if (activeMod.id === 'night') {
                     ctx.fillStyle = 'rgba(8,8,35,0.5)';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillRect(0, 0, VW, VH);
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
                     torches.forEach(t => {
@@ -1556,28 +1659,28 @@
                 ctx.font = "900 92px 'Grenze Gotisch', serif";
                 ctx.fillStyle = `rgba(255,60,40,${a*0.85})`;
                 ctx.shadowColor = 'rgba(255,0,0,0.8)'; ctx.shadowBlur = 30;
-                ctx.fillText(ef.text, canvas.width/2, canvas.height*0.32);
+                ctx.fillText(ef.text, VW/2, VH*0.32);
                 if (ef.sub) {
                     ctx.font = "600 30px 'Grenze Gotisch', serif";
                     ctx.shadowBlur = 8;
                     ctx.fillStyle = `rgba(255,220,180,${a*0.9})`;
-                    ctx.fillText(ef.sub.trim(), canvas.width/2, canvas.height*0.32 + 58);
+                    ctx.fillText(ef.sub.trim(), VW/2, VH*0.32 + 58);
                 }
                 ctx.restore();
             });
             // виньетка (кэшированный градиент)
-            if (!drawScene._vignette || drawScene._vignetteW !== canvas.width) {
-                const vg = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.height*0.45, canvas.width/2, canvas.height/2, canvas.width*0.72);
+            if (!drawScene._vignette || drawScene._vignetteW !== VW) {
+                const vg = ctx.createRadialGradient(VW/2, VH/2, VH*0.45, VW/2, VH/2, VW*0.72);
                 vg.addColorStop(0, 'rgba(0,0,0,0)');
                 vg.addColorStop(1, 'rgba(0,0,0,0.5)');
                 drawScene._vignette = vg;
-                drawScene._vignetteW = canvas.width;
+                drawScene._vignetteW = VW;
             }
             ctx.fillStyle = drawScene._vignette;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, VW, VH);
             if (gameOver) {
-                ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height);
-                ctx.font = "bold 48px 'Cinzel', serif"; ctx.fillStyle = '#ff3333'; ctx.textAlign = 'center'; ctx.fillText('ПОРАЖЕНИЕ', canvas.width/2, canvas.height/2);
+                ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,VW,VH);
+                ctx.font = "bold 48px 'Cinzel', serif"; ctx.fillStyle = '#ff3333'; ctx.textAlign = 'center'; ctx.fillText('ПОРАЖЕНИЕ', VW/2, VH/2);
             }
             ctx.restore();
         }
@@ -1639,11 +1742,11 @@
                 // дрейф тумана
                 fogBanks.forEach(f => {
                     f.x += f.vx * eDt; f.y += f.vy * eDt; f.ph += eDt;
-                    if (f.x < -f.r) f.x = canvas.width + f.r; if (f.x > canvas.width + f.r) f.x = -f.r;
-                    if (f.y < -f.r) f.y = canvas.height + f.r; if (f.y > canvas.height + f.r) f.y = -f.r;
+                    if (f.x < -f.r) f.x = VW + f.r; if (f.x > VW + f.r) f.x = -f.r;
+                    if (f.y < -f.r) f.y = VH + f.r; if (f.y > VH + f.r) f.y = -f.r;
                 });
                 checkWaveEnd();
-                if (Math.random()<0.3) particles.push({x:Math.random()*canvas.width, y:canvas.height, vx:(Math.random()-0.5)*5, vy:-12-Math.random()*22, life:2+Math.random()*3, color:'rgba(255,100,100,0.06)'});
+                if (Math.random()<0.3) particles.push({x:Math.random()*VW, y:VH, vx:(Math.random()-0.5)*5, vy:-12-Math.random()*22, life:2+Math.random()*3, color:'rgba(255,100,100,0.06)'});
                 if (gameOver && document.getElementById('victory-overlay').style.display === 'none') {
                     document.getElementById('victory-overlay').style.display = 'flex';
                     document.getElementById('overlay-title').textContent = 'ПОРАЖЕНИЕ';
