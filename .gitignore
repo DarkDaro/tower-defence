@@ -1,0 +1,32 @@
+# --- Операционные системы ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Редакторы и IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Временные и бэкап-файлы ---
+*.bak
+*.tmp
+*~
+
+# --- Python (утилиты в scripts/) ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# --- Node (если появятся инструменты разработки) ---
+node_modules/
+package-lock.json
+
+# --- Архивы (в git им нечего делать) ---
+*.rar
+*.zip
+*.7z
