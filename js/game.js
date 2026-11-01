@@ -216,11 +216,17 @@
         const ROWS = 18;
 
         function resize() {
-            const maxW = Math.min(window.innerWidth - 40, 1792);
-            const maxH = Math.min(window.innerHeight - 280, 1008);
-            const scale = Math.min(maxW / 1792, maxH / 1008);
-            canvas.style.width = `${1792 * scale}px`;
-            canvas.style.height = `${1008 * scale}px`;
+            // почти во всё окно: панели перекрывают поле, а не сжимают его
+            const scale = Math.max(0.25, Math.min((window.innerWidth - 24) / VW, (window.innerHeight - 24) / VH));
+            canvas.style.width = `${Math.round(VW * scale)}px`;
+            canvas.style.height = `${Math.round(VH * scale)}px`;
+            // физический буфер под реальный размер на экране — чёткость на любом окне
+            const q = Math.min(DPR, 4200 / (VW * scale));
+            canvas.width = Math.max(1, Math.round(VW * scale * q));
+            canvas.height = Math.max(1, Math.round(VH * scale * q));
+            ctx.setTransform(canvas.width / VW, 0, 0, canvas.height / VH, 0, 0);
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
         }
         window.addEventListener('resize', resize);
         resize();
@@ -458,6 +464,15 @@
         // enemySprites/bossSprites создаются после объявления enemyBase/bossTypes
         const towerSprites = {};
         for (const key in towerDefs) towerSprites[key] = makeSprite(72, (g,s) => paintTowerSprite(g, s, key, towerDefs[key]));
+        // ---------- PNG-спрайты (этап 5): бестиарий в файлах, fallback — процедурные ----------
+        const ENEMY_FILES = ['boar','wolf','zombie','bat','skeleton','spider','orc','dark_mage','drake','knight','ghost','berserker','sentinel','wind_shaman','gargoyle','necromancer'];
+        const BOSS_FILES = ['orc_chief','spider_queen','dragon_lord','lich_king','demon_lord','shadow_lord','iron_golem','wind_walker'];
+        const TOWER_FILES = { archer:'archer', cannon:'cannon', ice:'ice', magic:'magic', poison:'poison', lightning:'lightning', buffer:'drum', siege:'siege' };
+        const pngEnemies = ENEMY_FILES.map(n => { const im = new Image(); im.src = 'assets/sprites/enemies/' + n + '.png'; return im; });
+        const pngBosses = BOSS_FILES.map(n => { const im = new Image(); im.src = 'assets/sprites/bosses/' + n + '.png'; return im; });
+        const pngTowers = {};
+        for (const k in TOWER_FILES) { const im = new Image(); im.src = 'assets/sprites/towers/' + TOWER_FILES[k] + '.png'; pngTowers[k] = im; }
+        const pngOk = im => im.complete && im.naturalWidth > 0;
         function paintTowerSprite(g, s, key, d) {
             const cx = s/2, baseY = s*0.68;
             // тень
@@ -545,7 +560,9 @@
                 } else {
                     tooltip = `Урон: ${d.damage[0]} | CD: ${d.cooldown[0]}с | DPS: ${dps}<br>${d.desc}`;
                 }
-                btn.innerHTML = `<img class="btn-sprite" src="${towerSprites[key].toDataURL()}" alt=""> ${d.name} (${d.cost}<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#ffcf7a" stroke="#9a6a10" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#9a6a10" stroke-width="1.5"/><path d="M12 9v6" stroke="#9a6a10" stroke-width="1.5"/></svg></span>)<div class="tower-tooltip">${tooltip}</div>`;
+                btn.innerHTML = `<img class="btn-sprite" src="assets/sprites/towers/${TOWER_FILES[key]}.png" alt=""> ${d.name} (${d.cost}<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#ffcf7a" stroke="#9a6a10" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#9a6a10" stroke-width="1.5"/><path d="M12 9v6" stroke="#9a6a10" stroke-width="1.5"/></svg></span>)<div class="tower-tooltip">${tooltip}</div>`;
+                const btnImg = btn.querySelector('img.btn-sprite');
+                btnImg.addEventListener('error', () => { btnImg.src = towerSprites[key].toDataURL(); }, { once: true });
                 btn.addEventListener('click', () => {
                     if (paused || gameOver || victory) return;
                     selectedBuildType = selectedBuildType === key ? null : key;
@@ -590,11 +607,11 @@
             { name:'Ходячий ветер', emoji:'💨', hp:1600, speed:55, armor:8, resist:{}, reward:240, color:'#88ddcc', size:1.6, auraSpeed:1.4, auraRadius:150, canInvuln:true, flying:true }
         ];
         // спрайты существ (нужны enemyBase/bossTypes)
-        const ANIM_FRAMES = 4; // кадры цикла шага/взмаха на существо
+        const ANIM_FRAMES = 4; // кадры цикла шага/взмаха на существо (fallback)
         const enemySprites = enemyBase.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(80, (g,s) => paintCreature(g, s, d, creatureKind(d), false, f))));
         const bossSprites = bossTypes.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(98, (g,s) => paintCreature(g, s, d, creatureKind(d), true, f))));
         // dataURL спрайтов считаем ОДИН раз (иначе 24 toDataURL каждый кадр)
-        const killIconUrls = [...enemySprites, ...bossSprites].map(fr => fr[0].toDataURL());
+        const killIconUrls = [...pngEnemies, ...pngBosses].map(im => im.src);
 
         function getDifficultyMultiplier(wave) {
             // плавная экспонента вместо ступеней: волна 10 ≈ ×2.0, 20 ≈ ×4.3, 30 ≈ ×9.3
@@ -1518,8 +1535,16 @@
                     ctx.fillStyle = `rgba(255,200,100,${0.03 + pulse*0.02})`; ctx.fill();
                     ctx.strokeStyle = `rgba(255,200,100,${0.15 + pulse*0.1})`; ctx.lineWidth=1; ctx.stroke();
                 }
-                const spr = towerSprites[t.type];
-                if (spr) ctx.drawImage(spr, x - spr.width*0.65/SPRITE_Q, y - spr.height*0.72/SPRITE_Q, spr.width*1.3/SPRITE_Q, spr.height*1.3/SPRITE_Q);
+                const pngT = pngTowers[t.type];
+                if (pngOk(pngT)) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                    ctx.beginPath(); ctx.ellipse(x, y + CELL*0.32, CELL*0.44, CELL*0.13, 0, 0, 2*Math.PI); ctx.fill();
+                    const w = CELL * 1.6;
+                    ctx.drawImage(pngT, x - w/2, y - w*0.66, w, w);
+                } else {
+                    const spr = towerSprites[t.type];
+                    if (spr) ctx.drawImage(spr, x - spr.width*0.65/SPRITE_Q, y - spr.height*0.72/SPRITE_Q, spr.width*1.3/SPRITE_Q, spr.height*1.3/SPRITE_Q);
+                }
                 ctx.fillStyle='#ffaa00'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
                 for (let i=0;i<t.level;i++) ctx.fillText('★', x-16 + i*11, y-24);
                 if (selectedTower===t) {
@@ -1555,11 +1580,23 @@
                     ctx.fillStyle = 'rgba(0,0,0,0.3)';
                     ctx.beginPath(); ctx.ellipse(e.x, e.y + e.size*8, e.size*8, e.size*3.5, 0, 0, 2*Math.PI); ctx.fill();
                 }
-                const frames = e.isBoss ? bossSprites[e.typeIndex] : enemySprites[e.typeIndex];
-                const spr = frames[Math.floor((e.animT || 0) * 6) % frames.length];
-                if (spr) {
+                const png = e.isBoss ? pngBosses[e.typeIndex] : pngEnemies[e.typeIndex];
+                if (pngOk(png)) {
+                    if (!e.flying) {
+                        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                        ctx.beginPath(); ctx.ellipse(ex, e.y + e.size*14, e.size*13, e.size*4, 0, 0, 2*Math.PI); ctx.fill();
+                    }
+                    // «дыхание»: лёгкое покачивание по фазе пути (как было с кадрами)
+                    const bob = Math.sin((e.animT || 0) * 6) * (e.flying ? 2.5 : 1.2) * Math.min(1.4, e.size);
                     const w = e.size * 50;
-                    ctx.drawImage(spr, ex - w/2, ey - w/2, w, w);
+                    ctx.drawImage(png, ex - w/2, ey - w/2 + bob, w, w);
+                } else {
+                    const frames = e.isBoss ? bossSprites[e.typeIndex] : enemySprites[e.typeIndex];
+                    const spr = frames[Math.floor((e.animT || 0) * 6) % frames.length];
+                    if (spr) {
+                        const w = e.size * 50;
+                        ctx.drawImage(spr, ex - w/2, ey - w/2, w, w);
+                    }
                 }
                 if (e.hp < e.maxHp) {
                     const w = e.size*22;
