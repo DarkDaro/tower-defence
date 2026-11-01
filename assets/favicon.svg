@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e1411"/>
+      <stop offset="1" stop-color="#0a0505"/>
+    </linearGradient>
+    <radialGradient id="win" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd75e" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="portal" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#c060ff" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#a040ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="14" fill="url(#bg)" stroke="#8b3a3a" stroke-width="2"/>
+  <ellipse cx="32" cy="55" rx="16" ry="7" fill="url(#portal)"/>
+  <ellipse cx="32" cy="55.5" rx="8" ry="3" fill="#a84aff" opacity="0.75"/>
+  <path d="M21 52 L23.2 23 H40.8 L43 52 Z" fill="#3d4433" stroke="#1e2216" stroke-width="1.5"/>
+  <path d="M22.6 33 H41.4 M22 42 H42" stroke="#2e3426" stroke-width="1.2"/>
+  <path d="M20.4 19.5 H43.6 V23 H20.4 Z M20.4 15 H25.6 V19.5 H20.4 Z M29.4 15 H34.6 V19.5 H29.4 Z M38.4 15 H43.6 V19.5 H38.4 Z" fill="#4a5138" stroke="#1e2216" stroke-width="1.2"/>
+  <circle cx="32" cy="30.5" r="7" fill="url(#win)"/>
+  <rect x="30.6" y="27" width="2.8" height="8" rx="1.4" fill="#ffb347"/>
+  <path d="M28 52 V46 A4 4 0 0 1 36 46 V52 Z" fill="#17120e"/>
+  <circle cx="32" cy="48.8" r="0.9" fill="#ff7828" opacity="0.85"/>
+</svg>
