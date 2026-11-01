@@ -1156,6 +1156,7 @@
                     html = `${d.icon} ${d.name} ур.${t.level} | Урон:${cfg.damage} | CD:${cfg.cooldown}с | DPS:${dps} `;
                 }
                 if (t.level < 4) html += `<button class="btn" id="upg-btn">Улучшить (${t.upgradeCost()}<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#ffcf7a" stroke="#9a6a10" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#9a6a10" stroke-width="1.5"/><path d="M12 9v6" stroke="#9a6a10" stroke-width="1.5"/></svg></span>)</button>`;
+                else html += `<button class="btn" id="upg-btn" disabled title="Максимальный уровень">Макс. уровень</button>`;
                 html += `<button class="btn" id="sell-btn">Продать (${t.sellValue()}<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#ffcf7a" stroke="#9a6a10" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#9a6a10" stroke-width="1.5"/><path d="M12 9v6" stroke="#9a6a10" stroke-width="1.5"/></svg></span>)</button>`;
                 info.innerHTML = html;
                 document.getElementById('upg-btn')?.addEventListener('click', (e)=>{ e.stopPropagation(); if (gold >= t.upgradeCost()) { gold -= t.upgradeCost(); t.level++; playUpgrade(); updateSelectedInfo(); saveGame(); } else { playError(); showToast('Недостаточно золота'); } });
