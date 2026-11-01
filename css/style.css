@@ -548,8 +548,9 @@
 }
 #top-bar .btn, #bottom-bar .btn { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
 #top-bar .stat { padding: 2px 10px; font-size: 15px; }
-/* Мультиборд: опускаем ниже полупрозрачной верхней панели и не даём вылезти за низ поля */
-#multiboard { top: 74px; max-height: calc(100% - 84px); }
+/* Мультиборд: ниже полупрозрачной верхней панели; низ — не ниже 66% высоты поля:
+   врата выхода стоят на правом краю на ~75% высоты, доска их не должна накрывать */
+#multiboard { top: 74px; max-height: max(180px, calc(66% - 74px)); }
 
 /* ================= Узкие окна: компактная нижняя панель ================= */
 /* Текст кнопок башен статичен (имя+цена не меняются) — сжатие не создаёт дёрганья.
@@ -594,7 +595,7 @@ canvas, .btn, .tower-btn, #volume-slider { touch-action: manipulation; }
     .tower-btn .btn-sprite { width: 18px; height: 18px; }
     .tower-btn .tname { display: none; } /* на мобиле: иконка + цена */
     #selected-info { font-size: 12px; }
-    #multiboard { width: 150px; padding: 8px; font-size: 12px; top: 64px; max-height: calc(100% - 74px); }
+    #multiboard { width: 150px; padding: 8px; font-size: 12px; top: 64px; max-height: max(140px, calc(66% - 64px)); }
     #multiboard h3 { font-size: 13px; }
 }
 /* --- Телефон в портрете: колонки нижней панели в столбик --- */
