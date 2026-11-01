@@ -40,10 +40,13 @@ def ev_json(js):
     # "{\"a\":1}" — сначала снимаем внешнюю кодировку
     if out.startswith('"'):
         out = json.loads(out)
-    m = re.search(r"\{.*\}", out, re.S)
-    if not m:
-        raise RuntimeError("нет JSON в ответе: " + out[:300])
-    return json.loads(m.group(0))
+    try:
+        return json.loads(out)
+    except ValueError:
+        m = re.search(r"\{.*\}", out, re.S)
+        if not m:
+            raise RuntimeError("нет JSON в ответе: " + out[:300])
+        return json.loads(m.group(0))
 
 
 def state():
