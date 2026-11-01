@@ -511,6 +511,7 @@
         #lightning-btn { min-width: 161px; }
         #frost-btn { min-width: 156px; }
         #fire-rain-btn { min-width: 150px; }
+        #fs-btn { min-width: 132px; } /* Развернуть(132) / Свернуть(122) — берём большее */
         /* цифры ресурсов: табличные цифры + запас разрядов — пилюли не ходят */
         .stat, #mana-text, #selected-info, #multiboard { font-variant-numeric: tabular-nums; }
         #gold-display { display: inline-block; min-width: 4ch; }

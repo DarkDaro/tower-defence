@@ -1313,6 +1313,50 @@
         document.getElementById('restart-btn').onclick = resetGame;
         document.getElementById('restart-overlay-btn').onclick = resetGame;
 
+        // ---------- ПОЛНЫЙ ЭКРАН ----------
+        // Кнопка «Развернуть»: Fullscreen API с webkit-фолбэком (Safari), попытка
+        // ландшафтной ориентации на мобильных. Где API нет (iPhone Safari) — кнопка скрыта.
+        const fsBtn = document.getElementById('fs-btn');
+        const fsRoot = document.documentElement;
+        function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+        function fsBtnLabel(on) {
+            const svg = on
+                ? '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" fill="none" stroke="#c9c2b4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+                : '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="#c9c2b4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+            return svg + (on ? ' Свернуть' : ' Развернуть');
+        }
+        function fsSyncBtn() {
+            if (!fsBtn) return;
+            const on = !!fsElement();
+            fsBtn.innerHTML = fsBtnLabel(on);
+            fsBtn.title = on ? 'Выйти из полного экрана' : 'На весь экран';
+        }
+        function fsTryLockLandscape() {
+            try { const so = window.screen && screen.orientation; if (so && so.lock) so.lock('landscape').catch(()=>{}); } catch(e) {}
+        }
+        function fsToggle() {
+            if (fsElement()) {
+                const exit = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exit) { try { const p = exit.call(document); if (p && p.catch) p.catch(()=>{}); } catch(e) {} }
+                return;
+            }
+            const req = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen;
+            if (!req) return;
+            let p = null;
+            try { p = req.call(fsRoot); } catch(e) { return; }
+            Promise.resolve(p).then(() => { fsTryLockLandscape(); resize(); }).catch(()=>{});
+        }
+        if (fsBtn) {
+            if (!(fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen)) {
+                fsBtn.style.display = 'none'; // API нет — кнопка не нужна
+            } else {
+                fsBtn.onclick = fsToggle;
+                document.addEventListener('fullscreenchange', () => { fsSyncBtn(); resize(); });
+                document.addEventListener('webkitfullscreenchange', () => { fsSyncBtn(); resize(); });
+                fsSyncBtn();
+            }
+        }
+
         function showEndStats() {
             const mm = String(Math.floor(totalPlayTime/60)).padStart(2,'0');
             const ss = String(Math.floor(totalPlayTime%60)).padStart(2,'0');
