@@ -270,7 +270,8 @@
         for (let i=0; i<COLS; i++) for (let j=0; j<ROWS; j++) {
             if (pathSet.has(`${i},${j}`) || Math.random() >= 0.18) continue;
             const roll = Math.random();
-            const type = roll < 0.34 ? 'tree' : roll < 0.52 ? 'bush' : roll < 0.70 ? 'rock' : roll < 0.88 ? 'flowers' : 'skull';
+            // мёртвый лес: сухостой, колючий кустарник, камни, могилы, обелиски, кости
+            const type = roll < 0.30 ? 'tree' : roll < 0.48 ? 'bush' : roll < 0.68 ? 'rock' : roll < 0.82 ? 'grave' : roll < 0.92 ? 'spike' : 'skull';
             decorations.push({ col:i, row:j, type,
                 ox: (Math.random()-0.5)*14, oy: (Math.random()-0.5)*10,
                 s: 0.75 + Math.random()*0.5, hue: Math.random() });
@@ -1400,42 +1401,86 @@
                 ctx.translate(shakeX, shakeY);
             }
             for (let row=0; row<ROWS; row++) for (let col=0; col<COLS; col++) {
-                ctx.fillStyle = ((col+row)%2===0) ? '#2d1f1a' : '#251812';
+                ctx.fillStyle = ((col+row)%2===0) ? '#241813' : '#1d120e';
                 ctx.fillRect(col*CELL, row*CELL, CELL, CELL);
+                // изнанка клетки — детерминирована координатами, мерцать не может
+                const h = ((col*73856093) ^ (row*19349663)) >>> 0;
+                const v = h % 97;
+                const x0 = col*CELL, y0 = row*CELL;
+                if (v < 22) { // мох
+                    ctx.fillStyle = 'rgba(44,52,28,0.16)';
+                    ctx.beginPath(); ctx.ellipse(x0 + (h>>3)%40 + 8, y0 + (h>>5)%40 + 8, 10 + (h>>7)%8, 6 + (h>>9)%6, (h%628)/100, 0, 2*Math.PI); ctx.fill();
+                } else if (v < 38) { // проплешина сырой земли
+                    ctx.fillStyle = 'rgba(12,6,4,0.30)';
+                    ctx.beginPath(); ctx.ellipse(x0 + (h>>3)%40 + 8, y0 + (h>>5)%40 + 8, 12 + (h>>7)%7, 8 + (h>>9)%5, (h%628)/100, 0, 2*Math.PI); ctx.fill();
+                } else if (v < 50) { // трещины
+                    ctx.strokeStyle = 'rgba(8,4,3,0.35)'; ctx.lineWidth = 1;
+                    const cx = x0 + 12 + (h>>3)%32, cy = y0 + 10 + (h>>5)%32;
+                    ctx.beginPath(); ctx.moveTo(cx - 10, cy - 4); ctx.lineTo(cx, cy); ctx.lineTo(cx - 2, cy + 8); ctx.moveTo(cx, cy); ctx.lineTo(cx + 11, cy + 2); ctx.stroke();
+                } else if (v < 62) { // камешки
+                    ctx.fillStyle = 'rgba(58,48,42,0.5)';
+                    for (let k=0;k<3;k++){ const px = x0 + 6 + ((h>>(k*5))%44), py = y0 + 6 + ((h>>(k*5+2))%44); ctx.beginPath(); ctx.ellipse(px, py, 1.6, 1.1, 0, 0, 2*Math.PI); ctx.fill(); }
+                }
             }
             decorations.forEach(d => {
                 const x = d.col*CELL+CELL/2 + d.ox, y = d.row*CELL+CELL/2 + d.oy;
                 const s = d.s;
                 ctx.save(); ctx.shadowColor='black'; ctx.shadowBlur=6;
-                if (d.type==='tree') {
-                    const trunkH = 13*s;
-                    ctx.fillStyle='#4a2e1a'; ctx.fillRect(x-2*s, y-2, 4*s, trunkH);
-                    ctx.fillStyle = d.hue < 0.5 ? '#2d4a1e' : '#243d18';
-                    ctx.beginPath(); ctx.arc(x, y-6*s, 11*s, 0, 2*Math.PI); ctx.fill();
-                    ctx.fillStyle = 'rgba(90,140,60,0.35)';
-                    ctx.beginPath(); ctx.arc(x-3*s, y-9*s, 5*s, 0, 2*Math.PI); ctx.fill();
-                } else if (d.type==='bush') {
-                    ctx.fillStyle='#2c451c';
-                    ctx.beginPath(); ctx.arc(x-4*s, y, 6*s, 0, 2*Math.PI); ctx.arc(x+4*s, y, 6*s, 0, 2*Math.PI); ctx.arc(x, y-4*s, 6*s, 0, 2*Math.PI); ctx.fill();
+                if (d.type==='tree') { // мёртвое корявое дерево
+                    const lean = (d.hue - 0.5) * 1.1;
+                    ctx.strokeStyle = '#241610'; ctx.lineCap = 'round';
+                    ctx.lineWidth = 5*s;
+                    ctx.beginPath(); ctx.moveTo(x, y+3); ctx.quadraticCurveTo(x + 6*s*lean, y - 8*s, x + 10*s*lean, y - 15*s); ctx.stroke();
+                    ctx.lineWidth = 2*s;
+                    ctx.beginPath();
+                    ctx.moveTo(x + 5*s*lean, y - 8*s); ctx.lineTo(x + (12+4*d.hue)*s, y - 15*s);
+                    ctx.moveTo(x + 4*s*lean, y - 11*s); ctx.lineTo(x - (8+3*d.hue)*s, y - 18*s);
+                    ctx.stroke();
+                    ctx.fillStyle = 'rgba(30,38,22,0.9)'; // редкая тёмная листва
+                    ctx.beginPath(); ctx.arc(x + 10*s*lean, y - 16*s, 4.5*s, 0, 2*Math.PI); ctx.fill();
+                } else if (d.type==='bush') { // сухой колючий куст
+                    ctx.strokeStyle = '#2a2416'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+                    for (let b=0;b<5;b++){ const a = -0.4 - b*0.55 + d.hue; ctx.beginPath(); ctx.moveTo(x, y+2); ctx.lineTo(x + Math.cos(a)*8*s, y + Math.sin(a)*9*s); ctx.stroke(); }
+                    ctx.fillStyle = 'rgba(34,38,22,0.85)';
+                    ctx.beginPath(); ctx.ellipse(x, y, 6*s, 4*s, 0, 0, 2*Math.PI); ctx.fill();
                 } else if (d.type==='rock') {
-                    ctx.fillStyle='#3a3030';
+                    ctx.fillStyle='#2c2626';
                     ctx.beginPath(); ctx.ellipse(x, y+2, 8*s, 6*s, d.hue, 0, 2*Math.PI); ctx.fill();
-                    ctx.fillStyle='rgba(255,255,255,0.08)';
-                    ctx.beginPath(); ctx.ellipse(x-2*s, y, 3*s, 2*s, d.hue, 0, 2*Math.PI); ctx.fill();
-                } else if (d.type==='flowers') {
-                    ctx.strokeStyle='#2c451c'; ctx.lineWidth=1.5;
-                    for (let f=0; f<3; f++) {
-                        const fx = x + (f-1)*6*s, fy = y + (f%2)*3;
-                        ctx.beginPath(); ctx.moveTo(fx, y+5); ctx.lineTo(fx, fy); ctx.stroke();
-                        ctx.fillStyle = ['#ff6688','#ffcc44','#cc88ff'][f];
-                        ctx.beginPath(); ctx.arc(fx, fy, 2.4*s, 0, 2*Math.PI); ctx.fill();
-                    }
-                } else { // skull
-                    ctx.fillStyle='#c8c2b0';
-                    ctx.beginPath(); ctx.arc(x, y-1, 4.5*s, 0, 2*Math.PI); ctx.fill();
-                    ctx.fillRect(x-3*s, y+1, 6*s, 3*s);
-                    ctx.fillStyle='#333';
-                    ctx.fillRect(x-2.4*s, y-2.5, 1.6*s, 1.8*s); ctx.fillRect(x+0.8*s, y-2.5, 1.6*s, 1.8*s);
+                    ctx.fillStyle='rgba(15,10,8,0.6)';
+                    ctx.beginPath(); ctx.ellipse(x+2.5*s, y+3.5, 5*s, 3.5*s, d.hue, 0, 2*Math.PI); ctx.fill();
+                    ctx.fillStyle='rgba(46,58,30,0.35)'; // мох на камне
+                    ctx.beginPath(); ctx.ellipse(x-3*s, y-1, 3.2*s, 2*s, d.hue, 0, 2*Math.PI); ctx.fill();
+                } else if (d.type==='grave') { // покосившееся надгробие
+                    ctx.translate(x, y); ctx.rotate((d.hue-0.5)*0.16);
+                    ctx.fillStyle='rgba(14,8,6,0.5)'; // холмик
+                    ctx.beginPath(); ctx.ellipse(0, 5, 10*s, 3.5*s, 0, 0, 2*Math.PI); ctx.fill();
+                    ctx.fillStyle='#3b3b41';
+                    ctx.beginPath(); ctx.moveTo(-5*s, 5); ctx.lineTo(-5*s, -7*s); ctx.arc(0, -7*s, 5*s, Math.PI, 0); ctx.lineTo(5*s, 5); ctx.closePath(); ctx.fill();
+                    ctx.fillStyle='rgba(10,10,12,0.55)'; // тень грани
+                    ctx.fillRect(3*s, -10*s, 2.5*s, 15*s);
+                    ctx.strokeStyle='rgba(16,14,16,0.9)'; ctx.lineWidth=1.4; // выгравированный крест
+                    ctx.beginPath(); ctx.moveTo(0, -10*s); ctx.lineTo(0, -3*s); ctx.moveTo(-2*s, -8*s); ctx.lineTo(2*s, -8*s); ctx.stroke();
+                } else if (d.type==='spike') { // чёрный обелиск с тусклой руной
+                    ctx.translate(x, y); ctx.rotate((d.hue-0.5)*0.2);
+                    ctx.fillStyle='#161014';
+                    ctx.beginPath(); ctx.moveTo(0, -16*s); ctx.lineTo(4*s, 4); ctx.lineTo(-4*s, 4); ctx.closePath(); ctx.fill();
+                    ctx.fillStyle='rgba(70,58,64,0.5)';
+                    ctx.beginPath(); ctx.moveTo(0, -16*s); ctx.lineTo(1.2*s, 3); ctx.lineTo(-1*s, 3); ctx.closePath(); ctx.fill();
+                    ctx.strokeStyle = `rgba(140,40,36,${0.35 + 0.25*Math.sin(now*0.003 + d.hue*9)})`;
+                    ctx.lineWidth = 1.2;
+                    ctx.beginPath(); ctx.moveTo(-1.5*s, -6*s); ctx.lineTo(1.5*s, -4*s); ctx.moveTo(0, -8*s); ctx.lineTo(0, -2*s); ctx.stroke();
+                } else { // череп и кости, полузанесённые землёй
+                    const sx = x + 2*s, sy = y - 2*s;
+                    ctx.strokeStyle='#8f867a'; ctx.lineWidth=1.8*s; ctx.lineCap='round';
+                    ctx.beginPath(); ctx.moveTo(sx-8*s, sy+4*s); ctx.lineTo(sx+1*s, sy+1*s);
+                    ctx.moveTo(sx-6*s, sy-2*s); ctx.lineTo(sx+8*s, sy+3*s); ctx.stroke();
+                    ctx.fillStyle='#a89e8c';
+                    ctx.beginPath(); ctx.arc(sx+3*s, sy-3*s, 3.8*s, 0, 2*Math.PI); ctx.fill();
+                    ctx.fillRect(sx, sy-2*s, 6.4*s, 3*s);
+                    ctx.fillStyle='#2a221c';
+                    ctx.fillRect(sx+1.4*s, sy-4*s, 1.4*s, 1.6*s); ctx.fillRect(sx+4.2*s, sy-4*s, 1.4*s, 1.6*s);
+                    ctx.fillStyle='rgba(20,12,8,0.55)'; // занесло землёй
+                    ctx.beginPath(); ctx.ellipse(x, y+4*s, 9*s, 2.6*s, 0, 0, 2*Math.PI); ctx.fill();
                 }
                 ctx.restore();
             });
@@ -1537,6 +1582,11 @@
             ctx.fillText('ВХОД ОРДЫ', Math.max(80, Math.min(VW - 80, st.x)), Math.max(24, st.y - 44));
             ctx.fillStyle = 'rgba(210,140,255,0.95)';
             ctx.fillText('ЦИТАДЕЛЬ — ОХРАНЯТЬ', Math.max(100, Math.min(VW - 100, end.x)), Math.max(24, end.y - 44));
+            // --- Винъетка: поле тонет во мраке по краям ---
+            const vg = ctx.createRadialGradient(VW/2, VH/2, Math.min(VW,VH)*0.36, VW/2, VH/2, Math.max(VW,VH)*0.62);
+            vg.addColorStop(0, 'rgba(0,0,0,0)');
+            vg.addColorStop(1, 'rgba(0,0,0,0.42)');
+            ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
             towers.forEach(t => {
                 const x = t.col*CELL+CELL/2, y = t.row*CELL+CELL/2;
                 if (t.type === 'buffer') {
