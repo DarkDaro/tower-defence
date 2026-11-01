@@ -240,6 +240,9 @@
         let stats = { towersBuilt: 0, goldEarned: 0, enemiesKilled: 0, wavesCompleted: 0 };
         let selectedTower = null, selectedBuildType = null; let massSelType = null;
         let gameSpeed = 1, paused = false, gameOver = false, victory = false;
+        // цифры HP над врагами: по умолчанию скрыты, тумблер «Цифры» (верхняя панель и пауза)
+        let showHpNumbers = false;
+        try { showHpNumbers = localStorage.getItem('td_hp_numbers') === '1'; } catch(e) {}
         let lightningCD = 0, frostCD = 0, fireRainCD = 0;
         let hoverCol = -1, hoverRow = -1;
         const killCount = Array(24).fill(0);
@@ -1253,6 +1256,7 @@
             document.getElementById('pm-speed').innerHTML = `<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 4l9 8-9 8z" fill="#c9c2b4"/><path d="M12 4l9 8-9 8z" fill="#c9c2b4"/></svg></span> Скорость: x${gameSpeed}`;
             document.getElementById('pm-sound').innerHTML = soundEnabled ? '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9a4 4 0 010 6" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/><path d="M18.5 6.5a8 8 0 010 11" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/></svg></span> Звук: вкл' : '<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9l6 6M22 9l-6 6" stroke="#ff5a4a" stroke-width="2.2" stroke-linecap="round"/></svg></span> Звук: выкл';
             document.getElementById('pm-auto').innerHTML = autoStart ? '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> Авто-волна: вкл' : '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> Авто-волна: выкл';
+            document.getElementById('pm-hpnum').innerHTML = hpNumBtnLabel(showHpNumbers);
         }
         function setPaused(v) {
             if (gameOver || victory) return;
@@ -1278,6 +1282,8 @@
             document.getElementById('auto-btn').innerHTML = autoStart ? '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> Авто: вкл' : '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> Авто: выкл';
             saveGame(); syncPauseMenu();
         };
+        document.getElementById('pm-hpnum').onclick = () => setHpNumbers(!showHpNumbers);
+        document.getElementById('hp-num-btn').onclick = () => setHpNumbers(!showHpNumbers);
         document.getElementById('pm-restart').onclick = () => resetGame();
 
         document.getElementById('pause-btn').onclick = ()=>{ setPaused(!paused); };
@@ -1303,6 +1309,20 @@
         }
         function speedBtnLabel() {
             return `<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 4l9 8-9 8z" fill="#c9c2b4"/><path d="M12 4l9 8-9 8z" fill="#c9c2b4"/></svg></span> x${gameSpeed}`;
+        }
+        function hpNumBtnLabel(on) {
+            const eye = on
+                ? '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" fill="none" stroke="#ffcf7a" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="#ffcf7a"/></svg></span>'
+                : '<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" fill="none" stroke="#c9c2b4" stroke-width="2"/><path d="M4 4l16 16" stroke="#ff5a4a" stroke-width="2.2" stroke-linecap="round"/></svg></span>';
+            return eye + (on ? ' Цифры: вкл' : ' Цифры: выкл');
+        }
+        function setHpNumbers(v) {
+            showHpNumbers = v;
+            try { localStorage.setItem('td_hp_numbers', v ? '1' : '0'); } catch(e) {}
+            const top = document.getElementById('hp-num-btn');
+            if (top) top.innerHTML = hpNumBtnLabel(v);
+            const pm = document.getElementById('pm-hpnum');
+            if (pm) pm.innerHTML = hpNumBtnLabel(v);
         }
         function soundBtnLabel() {
             return soundEnabled
@@ -1651,6 +1671,7 @@
                 ctx.lineWidth = 2;
                 ctx.strokeRect(hoverCol*CELL+2, hoverRow*CELL+2, CELL-4, CELL-4);
             }
+            const hpLabels = []; // цифры HP рисуем после всех врагов — со сдвигом скученных меток вверх
             enemies.forEach(e => {
                 if (!e.emoji) return;
                 ctx.save();
@@ -1688,10 +1709,11 @@
                     hpGrad.addColorStop(1, '#ff6666');
                     ctx.fillStyle = hpGrad;
                     ctx.fillRect(ex-w/2, ey-e.size*14-4, w*(e.hp/e.maxHp), 4);
-                    ctx.font = 'bold 10px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillText(`${Math.ceil(e.hp)}/${e.maxHp}`, ex, ey - e.size*14 - 8);
+                    if (showHpNumbers) {
+                        // цифры HP — по тумблеру «Цифры», полоска видна всегда;
+                        // рисуем отложенно: скученные враги сдвигают метки вверх, без наложения
+                        hpLabels.push({ x: ex, y: ey - e.size*14 - 8, txt: `${Math.ceil(e.hp)}/${e.maxHp}` });
+                    }
                 }
                 if (e.shieldActive) { ctx.strokeStyle='#ffaa00'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); }
                 if (e.dmgShieldActive) { ctx.strokeStyle='#4488ff'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); }
@@ -1699,6 +1721,33 @@
                 if (e.berserk && e.hp < e.maxHp*0.5) { ctx.strokeStyle='red'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*15, 0, 2*Math.PI); ctx.stroke(); }
                 ctx.restore();
             });
+            if (showHpNumbers && hpLabels.length) {
+                // раскладка меток: одна полоса y — без пересечений, конфликтные уезжают на строку выше
+                ctx.font = 'bold 10px sans-serif';
+                ctx.textAlign = 'center';
+                const bands = [];
+                hpLabels.forEach(l => {
+                    const w = ctx.measureText(l.txt).width;
+                    let y = l.y, placed = false;
+                    while (!placed) {
+                        let band = bands.find(b => Math.abs(b.y - y) < 2);
+                        if (!band) { band = { y, items: [] }; bands.push(band); }
+                        if (band.items.every(it => l.x + w/2 < it.x0 - 2 || l.x - w/2 > it.x1 + 2)) {
+                            band.items.push({ x0: l.x - w/2, x1: l.x + w/2 });
+                            l.dy = y - l.y;
+                            placed = true;
+                        } else y -= 11;
+                    }
+                });
+                hpLabels.forEach(l => {
+                    const yy = l.y + (l.dy || 0);
+                    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+                    ctx.lineWidth = 3;
+                    ctx.strokeText(l.txt, l.x, yy);
+                    ctx.fillStyle = '#ffe9d2';
+                    ctx.fillText(l.txt, l.x, yy);
+                });
+            }
             projectiles.forEach(p => {
                 ctx.save();
                 // шлейф
@@ -1971,7 +2020,8 @@
         }
 
         if (loadGame() && lives > 0) { /* сейв жив */ } else resetGame(); // сейв с lives<=0 — мёртвый, начинаем заново
+        setHpNumbers(showHpNumbers); // тумблер цифр HP — из настроек
         // отладочный доступ к состоянию (для тестов)
-        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, lives, gold, paused, gameOver, victory, decals: decals.length, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]) }; } };
+        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, lives, gold, paused, gameOver, victory, decals: decals.length, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]), tw: towers.map(t=>[t.col,t.row,t.type]), hpNum: showHpNumbers }; } };
         requestAnimationFrame(loop);
     })();

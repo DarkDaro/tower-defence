@@ -507,6 +507,7 @@
         /* замерено в браузере: готов/кулдаун и выкл/вкл должны занимать одну ширину */
         #pause-btn { min-width: 97px; }
         #auto-btn { min-width: 129px; }
+        #hp-num-btn { min-width: 142px; }
         #lightning-btn { min-width: 161px; }
         #frost-btn { min-width: 156px; }
         #fire-rain-btn { min-width: 150px; }
