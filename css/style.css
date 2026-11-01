@@ -598,8 +598,19 @@ canvas, .btn, .tower-btn, #volume-slider { touch-action: manipulation; }
     #multiboard { width: 150px; padding: 8px; font-size: 12px; top: 64px; max-height: max(140px, calc(66% - 64px)); }
     #multiboard h3 { font-size: 13px; }
 }
-/* --- Телефон в портрете: колонки нижней панели в столбик --- */
+/* --- Телефон в портрете: панели в поток, не поверх канвы --- */
+/* Поле 1792x1008 в портрете ужмается до ~370x210 — перекрывающие панели
+   съедали его целиком и наезжали друг на друга. Колонка: панель, поле,
+   мультиборд, панель — каждый элемент виден целиком. */
 @media (orientation: portrait) and (max-width: 700px) {
+    #top-bar, #bottom-bar { position: static; align-self: stretch; width: auto; margin: 4px; }
+    #fs-btn { position: static; } /* из угла строки статов — в ряд кнопок */
+    #multiboard { position: static; width: auto; margin: 4px; max-height: none; }
     #bottom-bar { flex-direction: column; align-items: stretch; }
     .info-panel { max-width: 100%; justify-content: center; }
+    /* пилюли ресурсов не переносятся (единственный ряд без wrap) — распирали обёртку до 459px при окне 393px */
+    .stats { flex-wrap: wrap; justify-content: center; gap: 4px; }
+    #top-bar .stat { padding: 1px 6px; }
+    #mana-bar-bg { width: 90px; }
+    #selected-info { min-width: 0; }
 }

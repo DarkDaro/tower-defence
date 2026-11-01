@@ -216,8 +216,10 @@
         const ROWS = 18;
 
         function resize() {
-            // почти во всё окно: панели перекрывают поле, а не сжимают его
-            const scale = Math.max(0.25, Math.min((window.innerWidth - 24) / VW, (window.innerHeight - 24) / VH));
+            // почти во всё окно: панели перекрывают поле, а не сжимают его.
+            // Пол 0.12 вместо 0.25: в портрете телефона (393px) пол 0.25 делал канву
+            // (448px) шире окна — она резалась за краями; теперь честно вписываемся.
+            const scale = Math.max(0.12, Math.min((window.innerWidth - 24) / VW, (window.innerHeight - 24) / VH));
             canvas.style.width = `${Math.round(VW * scale)}px`;
             canvas.style.height = `${Math.round(VH * scale)}px`;
             // физический буфер под реальный размер на экране — чёткость на любом окне
