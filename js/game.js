@@ -231,7 +231,7 @@
         let enemies = [], towers = [], projectiles = [], effects = [], particles = [], floatingTexts = [];
         let screenShake = 0;
         let stats = { towersBuilt: 0, goldEarned: 0, enemiesKilled: 0, wavesCompleted: 0 };
-        let selectedTower = null, selectedBuildType = null;
+        let selectedTower = null, selectedBuildType = null; let massSelType = null;
         let gameSpeed = 1, paused = false, gameOver = false, victory = false;
         let lightningCD = 0, frostCD = 0, fireRainCD = 0;
         let hoverCol = -1, hoverRow = -1;
@@ -1146,6 +1146,29 @@
 
         function updateSelectedInfo() {
             const info = document.getElementById('selected-info');
+            const goldIco = (n) => n + '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#ffcf7a" stroke="#9a6a10" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#9a6a10" stroke-width="1.5"/><path d="M12 9v6" stroke="#9a6a10" stroke-width="1.5"/></svg></span>';
+            // Массовый режим: все башни одного типа
+            if (massSelType && !selectedTower) {
+                const d = towerDefs[massSelType];
+                const list = towers.filter(t => t.type === massSelType);
+                const upg = list.filter(t => t.level < 4);
+                const upgCost = upg.reduce((s,t) => s + t.upgradeCost(), 0);
+                const sellSum = list.reduce((s,t) => s + t.sellValue(), 0);
+                let html = `<b>${d.icon} ${d.name}</b> — выбрано ${list.length}, на максимуме ${list.length - upg.length} `;
+                html += `<button class="btn" id="upg-all-btn" ${upg.length ? '' : 'disabled title="Все на максимуме"'}>Улучшить все (${goldIco(upgCost)})</button>`;
+                html += `<button class="btn" id="sell-all-btn" ${list.length ? '' : 'disabled'}>Продать все (+${goldIco(sellSum)})</button>`;
+                html += `<button class="btn" id="mass-done-btn">Готово</button>`;
+                info.innerHTML = html;
+                document.getElementById('upg-all-btn')?.addEventListener('click', (e)=>{ e.stopPropagation();
+                    if (!upg.length) return;
+                    if (gold < upgCost) { playError(); showToast('Нужно ' + upgCost + ' золота'); return; }
+                    gold -= upgCost; upg.forEach(t => t.level++); playUpgrade(); updateSelectedInfo(); saveGame(); });
+                document.getElementById('sell-all-btn')?.addEventListener('click', (e)=>{ e.stopPropagation();
+                    if (!list.length) return;
+                    gold += sellSum; towers = towers.filter(t => t.type !== massSelType); playSell(); updateSelectedInfo(); saveGame(); });
+                document.getElementById('mass-done-btn')?.addEventListener('click', (e)=>{ e.stopPropagation(); massSelType = null; updateSelectedInfo(); });
+                return;
+            }
             if (selectedTower) {
                 const t = selectedTower; const d = towerDefs[t.type]; const cfg = t.cfg;
                 let html;
@@ -1155,12 +1178,14 @@
                     const dps = (cfg.damage / cfg.cooldown).toFixed(0);
                     html = `${d.icon} ${d.name} ур.${t.level} | Урон:${cfg.damage} | CD:${cfg.cooldown}с | DPS:${dps} `;
                 }
-                if (t.level < 4) html += `<button class="btn" id="upg-btn">Улучшить (${t.upgradeCost()}<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#ffcf7a" stroke="#9a6a10" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#9a6a10" stroke-width="1.5"/><path d="M12 9v6" stroke="#9a6a10" stroke-width="1.5"/></svg></span>)</button>`;
+                if (t.level < 4) html += `<button class="btn" id="upg-btn">Улучшить (${goldIco(t.upgradeCost())})</button>`;
                 else html += `<button class="btn" id="upg-btn" disabled title="Максимальный уровень">Макс. уровень</button>`;
-                html += `<button class="btn" id="sell-btn">Продать (${t.sellValue()}<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#ffcf7a" stroke="#9a6a10" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#9a6a10" stroke-width="1.5"/><path d="M12 9v6" stroke="#9a6a10" stroke-width="1.5"/></svg></span>)</button>`;
+                html += `<button class="btn" id="sell-btn">Продать (${goldIco(t.sellValue())})</button>`;
+                html += `<button class="btn" id="mass-btn" title="Выбрать все башни этого типа">Все такие (${towers.filter(x => x.type === t.type).length})</button>`;
                 info.innerHTML = html;
                 document.getElementById('upg-btn')?.addEventListener('click', (e)=>{ e.stopPropagation(); if (gold >= t.upgradeCost()) { gold -= t.upgradeCost(); t.level++; playUpgrade(); updateSelectedInfo(); saveGame(); } else { playError(); showToast('Недостаточно золота'); } });
                 document.getElementById('sell-btn')?.addEventListener('click', (e)=>{ e.stopPropagation(); gold += t.sellValue(); towers = towers.filter(tw => tw !== t); selectedTower = null; info.innerHTML = ''; playSell(); saveGame(); });
+                document.getElementById('mass-btn')?.addEventListener('click', (e)=>{ e.stopPropagation(); selectedTower = null; massSelType = t.type; updateSelectedInfo(); });
             } else info.innerHTML = selectedBuildType ? `Строим: ${towerDefs[selectedBuildType].name}` : '';
         }
 
