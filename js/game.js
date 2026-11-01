@@ -563,6 +563,9 @@
                 const btn = document.createElement('div');
                 btn.className = 'tower-btn';
                 btn.dataset.type = key;
+                btn.setAttribute('role', 'button');
+                btn.setAttribute('tabindex', '0');
+                btn.setAttribute('aria-label', `${d.name} — ${d.cost} золота`); // имя видно только на десктопе, для читалок — явная метка
                 let tooltip;
                 if (d.auraBuff) {
                     tooltip = `Бафф: +${d.auraBuff[0]*100}% | Радиус: ${d.auraRadius[0]}<br>${d.desc}`;

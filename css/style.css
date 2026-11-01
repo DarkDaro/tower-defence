@@ -1,7 +1,8 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         /* Android-браузеры «для удобства» раздувают шрифты в узкой вёрстке —
            кнопки вырастали и наезжали друг на друга. Запрещаем. */
-        html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+        html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+               -webkit-tap-highlight-color: transparent; } /* без серых вспышек на тапах в андроиде */
         body {
             background: #0a0505;
             background-image: radial-gradient(ellipse at center, #1a0a0a 0%, #0a0505 100%);
@@ -12,6 +13,7 @@
             min-height: 100dvh; /* адресная строка мобильных браузеров: vh считает её закрытой */
             font-family: 'Cormorant', 'Crimson Text', Georgia, serif;
             user-select: none;
+            -webkit-touch-callout: none; /* iOS: долгий тап не вызывает меню выделения */
             overflow: hidden;
         }
         #game-wrapper {
