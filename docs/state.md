@@ -29,6 +29,7 @@
 - `js/game.js` — вся игра: рендер, волны, башни, спеллы, сейв в localStorage.
 - `css/style.css` — стили (палитра тёмного фэнтези: бордово-кровавая + латунь); `css/fonts.css` — локальные @font-face (Grenze Gotisch, Cormorant, Ruslan Display).
 - `scripts/snap_enemies.py` — тестовый снимок «кадр+позиции» через `__TD` (agent-browser);
+- `scripts/wave_run.py` — бенчмарк-забег волн с планом застройки: жизни/золото/убийства по каждой волне (замер баланса);
 - `scripts/make_sprites.py` — генератор спрайтов: сетка 40×40, примитивы, passes outline+shade, экспорт ×4 (160px), превью `docs/sprites_preview.png`.
 - `assets/sprites/{enemies,bosses,towers}/` — 32 PNG (16 врагов + 8 боссов + 8 башен).
 - `Archive/` — старые версии скриптов.

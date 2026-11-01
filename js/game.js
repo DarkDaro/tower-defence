@@ -2171,6 +2171,29 @@
         if (loadGame() && lives > 0) { /* сейв жив */ } else resetGame(); // сейв с lives<=0 — мёртвый, начинаем заново
         setHpNumbers(showHpNumbers); // тумблер цифр HP — из настроек
         // отладочный доступ к состоянию (для тестов)
-        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, lives, gold, paused, gameOver, victory, decals: decals.length, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]), tw: towers.map(t=>[t.col,t.row,t.type]), hpNum: showHpNumbers }; }, spawn(n, type) { for (let i=0; i<(n||10); i++) enemies.push(new Enemy(type||1, waveNum)); } };
+        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, wave: waveNum, lives, gold, kills: stats.enemiesKilled, speed: gameSpeed, paused, gameOver, victory, decals: decals.length, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]), tw: towers.map(t=>[t.col,t.row,t.type]), hpNum: showHpNumbers }; }, spawn(n, type) { for (let i=0; i<(n||10); i++) enemies.push(new Enemy(type||1, waveNum)); },
+            // хуки замера баланса (scripts/wave_run.py): стройка/апгрейд без кликов мыши
+            build(col, row, type) {
+                if (!towerDefs[type]) return 'no-type';
+                if (pathSet.has(col + ',' + row)) return 'path';
+                if (towers.some(t => t.col === col && t.row === row)) return 'busy';
+                if (gold < towerDefs[type].cost) return 'gold';
+                gold -= towerDefs[type].cost;
+                towers.push(new Tower(col, row, type));
+                return true;
+            },
+            up(col, row) {
+                const t = towers.find(tw => tw.col === col && tw.row === row);
+                if (!t) return 'no-tower';
+                const c = t.upgradeCost();
+                if (c === null) return 'max';
+                if (gold < c) return 'gold';
+                gold -= c; t.level++;
+                return true;
+            },
+            setGold(n) { gold = n; },
+            setWave(n) { waveNum = n; },
+            setSpeed(n) { gameSpeed = n; document.getElementById('speed-btn').innerHTML = speedBtnLabel(); }
+        };
         requestAnimationFrame(loop);
     })();
