@@ -1419,6 +1419,51 @@
             ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(0, 0, 14 + portalPulse*3, 0, 2*Math.PI); ctx.stroke();
             ctx.restore();
+            // --- Врата спавна: красное пекло там, откуда выходят враги ---
+            const st = pathPoints[0], st2 = pathPoints[1];
+            const stAng = Math.atan2(st2.y - st.y, st2.x - st.x);
+            const spawnPulse = 0.5 + 0.5 * Math.sin(now * 0.005);
+            ctx.save();
+            ctx.translate(st.x, st.y); ctx.rotate(stAng);
+            ctx.fillStyle='#4a3434';
+            ctx.fillRect(-10, -26, 12, 52);
+            ctx.fillStyle='#5f4343';
+            ctx.fillRect(-12, -30, 16, 8); ctx.fillRect(-12, 22, 16, 8);
+            const gradS = ctx.createRadialGradient(0, 0, 2, 0, 0, 22);
+            gradS.addColorStop(0, `rgba(255,90,40,${0.75 + spawnPulse*0.25})`);
+            gradS.addColorStop(0.6, `rgba(150,30,10,${0.5 + spawnPulse*0.2})`);
+            gradS.addColorStop(1, 'rgba(60,0,0,0)');
+            ctx.fillStyle = gradS;
+            ctx.beginPath(); ctx.arc(0, 0, 22, 0, 2*Math.PI); ctx.fill();
+            ctx.strokeStyle = `rgba(255,140,80,${0.4 + spawnPulse*0.4})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, 0, 14 + spawnPulse*3, 0, 2*Math.PI); ctx.stroke();
+            ctx.restore();
+            // --- Шевроны по пути: куда идут враги ---
+            const chevShift = (now * 0.0012) % 1;
+            for (let i = 0; i < pathPoints.length - 1; i++) {
+                const a = pathPoints[i], b = pathPoints[i+1];
+                const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+                const steps = Math.max(1, Math.round(segLen / CELL));
+                const ang = Math.atan2(b.y - a.y, b.x - a.x);
+                for (let k = 0; k < steps; k++) {
+                    const t = (k + chevShift) / steps;
+                    if (t > 1) continue;
+                    const cx = a.x + (b.x - a.x) * t, cy = a.y + (b.y - a.y) * t;
+                    ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang);
+                    ctx.strokeStyle = `rgba(255,120,60,${0.28 + 0.18 * Math.sin(now * 0.004 + i * 1.3)})`;
+                    ctx.lineWidth = 2; ctx.beginPath();
+                    ctx.moveTo(-5, -6); ctx.lineTo(2, 0); ctx.lineTo(-5, 6);
+                    ctx.stroke(); ctx.restore();
+                }
+            }
+            // --- Подписи целей (с удержанием в границах канвы) ---
+            ctx.font = 'bold 15px Cormorant, serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(255,170,110,0.95)';
+            ctx.fillText('ВХОД ОРДЫ', Math.max(80, Math.min(VW - 80, st.x)), Math.max(24, st.y - 44));
+            ctx.fillStyle = 'rgba(210,140,255,0.95)';
+            ctx.fillText('ЦИТАДЕЛЬ — ОХРАНЯТЬ', Math.max(100, Math.min(VW - 100, end.x)), Math.max(24, end.y - 44));
             towers.forEach(t => {
                 const x = t.col*CELL+CELL/2, y = t.row*CELL+CELL/2;
                 if (t.type === 'buffer') {
