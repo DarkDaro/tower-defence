@@ -1156,14 +1156,23 @@
                 prevLives = lives;
             }
             const curMod = getWaveMod(waveNum + (waveActive ? 1 : 0));
-            document.getElementById('wave-display').innerHTML = `${waveNum}/${waves.length}${waveActive && curMod ? ' ' + curMod.icon : ''}`;
+            // иконка мода — в слоте фиксированной ширины, строка меняется только при изменении
+            const waveHtml = `${waveNum}/${waves.length}<span class="wm">${waveActive && curMod ? curMod.icon : ''}</span>`;
+            if (waveHtml !== updateUI.lastWaveHtml) {
+                updateUI.lastWaveHtml = waveHtml;
+                document.getElementById('wave-display').innerHTML = waveHtml;
+            }
             // Mana bar (+ классы регена/полноты, недоделанные ранее)
             const manaPct = (mana / maxMana) * 100;
             const manaFill = document.getElementById('mana-bar-fill');
             manaFill.style.width = `${manaPct}%`;
             manaFill.classList.toggle('regen', waveActive && mana < maxMana);
             manaFill.classList.toggle('full', mana >= maxMana);
-            document.getElementById('mana-text').textContent = `${Math.floor(mana)} / ${maxMana}`;
+            const manaShown = Math.floor(mana);
+            if (manaShown !== updateUI.lastMana) {
+                updateUI.lastMana = manaShown;
+                document.getElementById('mana-text').textContent = `${manaShown} / ${maxMana}`;
+            }
             // Spell buttons: перерисовка только при изменении, КД фиксированной ширины
             spellBtnUI('lightning-btn', lightningCD, 300);
             spellBtnUI('frost-btn', frostCD, 400);
@@ -1178,7 +1187,8 @@
                 kl.innerHTML = html;
             }
             const sp = document.getElementById('stats-panel');
-            if (sp) sp.innerHTML = `Башен: ${stats.towersBuilt}<br>Золота: ${stats.goldEarned}<br>Убито: ${stats.enemiesKilled}<br>Волн: ${stats.wavesCompleted}`;
+            const spHtml = `Башен: ${stats.towersBuilt}<br>Золота: ${stats.goldEarned}<br>Убито: ${stats.enemiesKilled}<br>Волн: ${stats.wavesCompleted}`;
+            if (sp && spHtml !== updateUI.lastStatsHtml) { updateUI.lastStatsHtml = spHtml; sp.innerHTML = spHtml; }
         }
 
         function updateSelectedInfo() {
@@ -1888,8 +1898,8 @@
             requestAnimationFrame(loop);
         }
 
-        if (!loadGame()) resetGame();
+        if (loadGame() && lives > 0) { /* сейв жив */ } else resetGame(); // сейв с lives<=0 — мёртвый, начинаем заново
         // отладочный доступ к состоянию (для тестов)
-        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, lives, gold, paused, gameOver, victory }; } };
+        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, lives, gold, paused, gameOver, victory, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]) }; } };
         requestAnimationFrame(loop);
     })();

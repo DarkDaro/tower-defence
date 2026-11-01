@@ -97,7 +97,7 @@
         }
         .btn:active {
             transform: translateY(1px);
-            border-bottom-width: 1px;
+            /* граница не меняется — иначе высота кнопки прыгает при нажатии */
             box-shadow: 0 1px 3px rgba(0,0,0,0.7), inset 0 2px 6px rgba(0,0,0,0.4);
             filter: brightness(0.92);
         }
@@ -185,7 +185,7 @@
         }
         .tower-btn:active {
             transform: translateY(2px);
-            border-bottom-width: 2px;
+            /* граница не меняется — иначе высота кнопки прыгает при нажатии */
             filter: brightness(0.9);
         }
         .tower-btn.active {
@@ -502,6 +502,22 @@
         .info-panel .btn { padding: 6px 12px; font-size: 13px; }
         .tower-btn { box-sizing: border-box; min-width: 148px; min-height: 46px; }
 
+        /* --- Анти-дёрганье: ширина кнопки не зависит от её состояния --- */
+        .btn { justify-content: center; }
+        /* замерено в браузере: готов/кулдаун и выкл/вкл должны занимать одну ширину */
+        #pause-btn { min-width: 97px; }
+        #auto-btn { min-width: 129px; }
+        #lightning-btn { min-width: 161px; }
+        #frost-btn { min-width: 156px; }
+        #fire-rain-btn { min-width: 150px; }
+        /* цифры ресурсов: табличные цифры + запас разрядов — пилюли не ходят */
+        .stat, #mana-text, #selected-info, #multiboard { font-variant-numeric: tabular-nums; }
+        #gold-display { display: inline-block; min-width: 4ch; }
+        #lives-display { display: inline-block; min-width: 2ch; }
+        #wave-display { display: inline-block; }
+        /* слот под иконку модификатора волны: место зарезервировано всегда */
+        .wm { display: inline-block; min-width: 1.3em; text-align: center; }
+
 /* ================= ЭТАП 5: поле почти во весь экран ================= */
 /* Панели больше не сжимают поле — они полупрозрачные и лежат поверх канвы. */
 #game-wrapper { padding: 4px; }
@@ -528,5 +544,5 @@
 }
 #top-bar .btn, #bottom-bar .btn { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
 #top-bar .stat { padding: 2px 10px; font-size: 15px; }
-/* Мультиборд: опускаем ниже полупрозрачной верхней панели */
-#multiboard { top: 74px; }
+/* Мультиборд: опускаем ниже полупрозрачной верхней панели и не даём вылезти за низ поля */
+#multiboard { top: 74px; max-height: calc(100% - 84px); }
