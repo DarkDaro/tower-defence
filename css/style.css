@@ -496,3 +496,8 @@
         .ic-mana { color: #a58cff; }
         .ic-fire { color: #ff8a3c; }
         .ic-dim { color: #c9c2b4; opacity: 0.85; }
+
+        /* --- Стабильность UI --- */
+        .info-panel { max-width: 62%; }
+        .info-panel .btn { padding: 6px 12px; font-size: 13px; }
+        .tower-btn { box-sizing: border-box; min-width: 148px; min-height: 46px; }
