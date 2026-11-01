@@ -559,3 +559,46 @@
     .tower-btns { gap: 5px; }
     #bottom-bar { padding: 4px 10px; }
 }
+
+/* ================= МОБИЛЬНЫЕ УСТРОЙСТВА ================= */
+/* Тач: без зума по двойному тапу и без задержки клика */
+canvas, .btn, .tower-btn, #volume-slider { touch-action: manipulation; }
+/* На тач-устройствах hover-эффекты «залипают» после тапа — выключаем их там */
+@media (hover: none) {
+    .btn:hover { transform: none; }
+    .tower-btn:hover { transform: none; box-shadow: none; border-color: #5e3030; background: linear-gradient(180deg, #321a1a 0%, #241010 100%); }
+    .tower-tooltip { display: none !important; } /* тултипы — только для мыши */
+}
+
+/* --- Узкие экраны: телефон в ландшафте, планшет в портрете, малое окно --- */
+@media (max-width: 950px) {
+    /* топ-панель в две строки: статы сверху, кнопки ниже — поле дышит */
+    #top-bar { flex-direction: column; align-items: center; padding: 3px 8px; gap: 3px; }
+    #top-bar .buttons { justify-content: center; gap: 3px; }
+    #top-bar .stat { padding: 1px 8px; font-size: 13px; gap: 4px; }
+    #top-bar .btn { padding: 3px 5px; font-size: 10.5px; border-radius: 5px; }
+    /* «Развернуть» — в правый угол строки статов: ряд кнопок не расширяем */
+    #fs-btn { position: absolute; top: 3px; right: 8px; min-width: 40px; }
+    /* слова-подписи прячем: остаются иконки + цена/состояние */
+    #top-bar .bname { display: none; }
+    /* мин-ширины под иконочный вид — пары состояний по-прежнему одной ширины */
+    #pause-btn, #start-wave-btn, #sound-btn, #fs-btn { min-width: 40px; }
+    #speed-btn { min-width: 46px; }
+    #auto-btn, #hp-num-btn { min-width: 62px; }
+    #lightning-btn, #frost-btn, #fire-rain-btn { min-width: 72px; }
+    #restart-btn { display: none; } /* рестарт — в меню паузы, экономим ряд */
+    #volume-slider { display: none; } /* громкость на мобиле — кнопкой Звук */
+    #mana-bar-bg { width: 120px; }
+    #bottom-bar { padding: 4px 10px; }
+    .tower-btn { min-width: 0; min-height: 32px; padding: 2px 3px; font-size: 9.5px; gap: 2px; }
+    .tower-btn .btn-sprite { width: 18px; height: 18px; }
+    .tower-btn .tname { display: none; } /* на мобиле: иконка + цена */
+    #selected-info { font-size: 12px; }
+    #multiboard { width: 150px; padding: 8px; font-size: 12px; top: 64px; max-height: calc(100% - 74px); }
+    #multiboard h3 { font-size: 13px; }
+}
+/* --- Телефон в портрете: колонки нижней панели в столбик --- */
+@media (orientation: portrait) and (max-width: 700px) {
+    #bottom-bar { flex-direction: column; align-items: stretch; }
+    .info-panel { max-width: 100%; justify-content: center; }
+}

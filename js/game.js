@@ -229,6 +229,8 @@
             ctx.imageSmoothingQuality = 'high';
         }
         window.addEventListener('resize', resize);
+        window.addEventListener('orientationchange', resize); // поворот телефона: resize срабатывает не всегда
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', resize); // сворачивание адресной строки
         resize();
 
         // ---------- GAME STATE ----------
@@ -565,7 +567,7 @@
                 } else {
                     tooltip = `Урон: ${d.damage[0]} | CD: ${d.cooldown[0]}с | DPS: ${dps}<br>${d.desc}`;
                 }
-                btn.innerHTML = `<img class="btn-sprite" src="assets/sprites/towers/${TOWER_FILES[key]}.png" alt=""> ${d.name} (${d.cost}<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#ffcf7a" stroke="#9a6a10" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#9a6a10" stroke-width="1.5"/><path d="M12 9v6" stroke="#9a6a10" stroke-width="1.5"/></svg></span>)<div class="tower-tooltip">${tooltip}</div>`;
+                btn.innerHTML = `<img class="btn-sprite" src="assets/sprites/towers/${TOWER_FILES[key]}.png" alt=""> <span class="tname">${d.name}</span> (${d.cost}<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#ffcf7a" stroke="#9a6a10" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#9a6a10" stroke-width="1.5"/><path d="M12 9v6" stroke="#9a6a10" stroke-width="1.5"/></svg></span>)<div class="tower-tooltip">${tooltip}</div>`;
                 const btnImg = btn.querySelector('img.btn-sprite');
                 btnImg.addEventListener('error', () => { btnImg.src = towerSprites[key].toDataURL(); }, { once: true });
                 btn.addEventListener('click', () => {
@@ -965,7 +967,7 @@
                 if (state.killCount) for (let i=0; i<killCount.length && i<state.killCount.length; i++) killCount[i] = state.killCount[i];
                 if (state.soundEnabled !== undefined) {
                     soundEnabled = state.soundEnabled;
-                    document.getElementById('sound-btn').innerHTML = soundEnabled ? '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9a4 4 0 010 6" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/><path d="M18.5 6.5a8 8 0 010 11" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/></svg></span> Звук' : '<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9l6 6M22 9l-6 6" stroke="#ff5a4a" stroke-width="2.2" stroke-linecap="round"/></svg></span> Звук';
+                    document.getElementById('sound-btn').innerHTML = soundBtnLabel();
                 }
                 if (state.gameSpeed) { gameSpeed = state.gameSpeed; document.getElementById('speed-btn').innerHTML = speedBtnLabel(); }
                 if (state.volume !== undefined) setVolume(state.volume);
@@ -999,9 +1001,9 @@
             localStorage.removeItem('td_save');
             document.getElementById('victory-overlay').style.display = 'none';
             document.getElementById('pause-overlay').style.display = 'none';
-            document.getElementById('pause-btn').innerHTML = '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="4.5" height="14" rx="1" fill="#c9c2b4"/><rect x="14.5" y="5" width="4.5" height="14" rx="1" fill="#c9c2b4"/></svg></span> Пауза';
+            document.getElementById('pause-btn').innerHTML = pauseBtnLabel(false);
             document.getElementById('speed-btn').innerHTML = '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 4l9 8-9 8z" fill="#c9c2b4"/><path d="M12 4l9 8-9 8z" fill="#c9c2b4"/></svg></span> x1';
-            document.getElementById('sound-btn').innerHTML = soundEnabled ? '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9a4 4 0 010 6" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/><path d="M18.5 6.5a8 8 0 010 11" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/></svg></span> Звук' : '<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9l6 6M22 9l-6 6" stroke="#ff5a4a" stroke-width="2.2" stroke-linecap="round"/></svg></span> Звук';
+            document.getElementById('sound-btn').innerHTML = soundBtnLabel();
             document.getElementById('start-wave-btn').disabled = false;
             document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('active'));
             updateUI(); updateSelectedInfo();
@@ -1278,7 +1280,7 @@
         function setPaused(v) {
             if (gameOver || victory) return;
             paused = v;
-            document.getElementById('pause-btn').innerHTML = paused ? '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 4l13 8-13 8z" fill="#c9c2b4"/></svg></span> Играть' : '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="4.5" height="14" rx="1" fill="#c9c2b4"/><rect x="14.5" y="5" width="4.5" height="14" rx="1" fill="#c9c2b4"/></svg></span> Пауза';
+            document.getElementById('pause-btn').innerHTML = pauseBtnLabel(paused);
             document.getElementById('pause-overlay').style.display = paused ? 'flex' : 'none';
             if (paused) syncPauseMenu();
         }
@@ -1291,12 +1293,12 @@
         };
         document.getElementById('pm-sound').onclick = () => {
             soundEnabled = !soundEnabled;
-            document.getElementById('sound-btn').innerHTML = soundEnabled ? '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9a4 4 0 010 6" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/><path d="M18.5 6.5a8 8 0 010 11" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/></svg></span> Звук' : '<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9l6 6M22 9l-6 6" stroke="#ff5a4a" stroke-width="2.2" stroke-linecap="round"/></svg></span> Звук';
+            document.getElementById('sound-btn').innerHTML = soundBtnLabel();
             saveGame(); syncPauseMenu();
         };
         document.getElementById('pm-auto').onclick = () => {
             autoStart = !autoStart;
-            document.getElementById('auto-btn').innerHTML = autoStart ? '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> Авто: вкл' : '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> Авто: выкл';
+            document.getElementById('auto-btn').innerHTML = autoBtnLabel(autoStart);
             saveGame(); syncPauseMenu();
         };
         document.getElementById('pm-hpnum').onclick = () => setHpNumbers(!showHpNumbers);
@@ -1305,7 +1307,7 @@
 
         document.getElementById('pause-btn').onclick = ()=>{ setPaused(!paused); };
         document.getElementById('speed-btn').onclick = ()=>{ gameSpeed = gameSpeed===1 ? 2 : gameSpeed===2 ? 3 : 1; document.getElementById('speed-btn').innerHTML = speedBtnLabel(); saveGame(); };
-        document.getElementById('auto-btn').onclick = ()=>{ autoStart = !autoStart; document.getElementById('auto-btn').innerHTML = autoStart ? '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> Авто: вкл' : '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> Авто: выкл'; saveGame(); };
+        document.getElementById('auto-btn').onclick = ()=>{ autoStart = !autoStart; document.getElementById('auto-btn').innerHTML = autoBtnLabel(autoStart); saveGame(); };
         document.getElementById('lightning-btn').onclick = castLightning;
         document.getElementById('frost-btn').onclick = castFrost;
         document.getElementById('fire-rain-btn').onclick = castFireRain;
@@ -1323,7 +1325,7 @@
             const svg = on
                 ? '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" fill="none" stroke="#c9c2b4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
                 : '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="#c9c2b4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
-            return svg + (on ? ' Свернуть' : ' Развернуть');
+            return svg + ' <span class="bname">' + (on ? 'Свернуть' : 'Развернуть') + '</span>';
         }
         function fsSyncBtn() {
             if (!fsBtn) return;
@@ -1357,6 +1359,24 @@
             }
         }
 
+        // ---------- ПОВОРОТ ЭКРАНА (мобильные) ----------
+        // Портрет на телефоне: поле 1792x1008 умещается в ладонь — предлагаем повернуть.
+        // «Играть так» убирает подсказку до перезагрузки страницы.
+        const rotateOverlay = document.getElementById('rotate-overlay');
+        let rotateDismissed = false;
+        const portraitQuery = window.matchMedia('(orientation: portrait)');
+        function checkOrientation() {
+            if (!rotateOverlay) return;
+            const show = portraitQuery.matches && window.innerWidth < 700 && !rotateDismissed;
+            rotateOverlay.style.display = show ? 'flex' : 'none';
+        }
+        if (rotateOverlay) {
+            document.getElementById('rotate-dismiss').onclick = () => { rotateDismissed = true; checkOrientation(); };
+            if (portraitQuery.addEventListener) portraitQuery.addEventListener('change', checkOrientation);
+            window.addEventListener('resize', checkOrientation);
+            checkOrientation();
+        }
+
         function showEndStats() {
             const mm = String(Math.floor(totalPlayTime/60)).padStart(2,'0');
             const ss = String(Math.floor(totalPlayTime%60)).padStart(2,'0');
@@ -1371,11 +1391,14 @@
         function speedBtnLabel() {
             return `<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 4l9 8-9 8z" fill="#c9c2b4"/><path d="M12 4l9 8-9 8z" fill="#c9c2b4"/></svg></span> x${gameSpeed}`;
         }
+        function autoBtnLabel(on) {
+            return '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> <span class="bname">Авто:</span> ' + (on ? 'вкл' : 'выкл');
+        }
         function hpNumBtnLabel(on) {
             const eye = on
                 ? '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" fill="none" stroke="#ffcf7a" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="#ffcf7a"/></svg></span>'
                 : '<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" fill="none" stroke="#c9c2b4" stroke-width="2"/><path d="M4 4l16 16" stroke="#ff5a4a" stroke-width="2.2" stroke-linecap="round"/></svg></span>';
-            return eye + (on ? ' Цифры: вкл' : ' Цифры: выкл');
+            return eye + ' <span class="bname">Цифры:</span> ' + (on ? 'вкл' : 'выкл');
         }
         function setHpNumbers(v) {
             showHpNumbers = v;
@@ -1385,10 +1408,15 @@
             const pm = document.getElementById('pm-hpnum');
             if (pm) pm.innerHTML = hpNumBtnLabel(v);
         }
+        function pauseBtnLabel(isPaused) {
+            return isPaused
+                ? '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 4l13 8-13 8z" fill="#c9c2b4"/></svg></span> <span class="bname">Играть</span>'
+                : '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="4.5" height="14" rx="1" fill="#c9c2b4"/><rect x="14.5" y="5" width="4.5" height="14" rx="1" fill="#c9c2b4"/></svg></span> <span class="bname">Пауза</span>';
+        }
         function soundBtnLabel() {
             return soundEnabled
-                ? '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9a4 4 0 010 6" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/><path d="M18.5 6.5a8 8 0 010 11" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/></svg></span> Звук'
-                : '<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9l6 6M22 9l-6 6" stroke="#ff5a4a" stroke-width="2.2" stroke-linecap="round"/></svg></span> Звук';
+                ? '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9a4 4 0 010 6" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/><path d="M18.5 6.5a8 8 0 010 11" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/></svg></span> <span class="bname">Звук</span>'
+                : '<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9l6 6M22 9l-6 6" stroke="#ff5a4a" stroke-width="2.2" stroke-linecap="round"/></svg></span> <span class="bname">Звук</span>';
         }
         function setVolume(v) {
             volume = Math.max(0, Math.min(1, v));
@@ -1401,7 +1429,7 @@
             }
         }
         document.getElementById('volume-slider').addEventListener('input', (e) => { setVolume(e.target.value/100); saveGame(); });
-        document.getElementById('sound-btn').onclick = ()=>{ soundEnabled = !soundEnabled; document.getElementById('sound-btn').innerHTML = soundEnabled ? '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9a4 4 0 010 6" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/><path d="M18.5 6.5a8 8 0 010 11" fill="none" stroke="#ffcf7a" stroke-width="2" stroke-linecap="round"/></svg></span> Звук' : '<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 9v6h4l5 4V5L8 9z" fill="#c9c2b4"/><path d="M16 9l6 6M22 9l-6 6" stroke="#ff5a4a" stroke-width="2.2" stroke-linecap="round"/></svg></span> Звук'; saveGame(); };
+        document.getElementById('sound-btn').onclick = ()=>{ soundEnabled = !soundEnabled; document.getElementById('sound-btn').innerHTML = soundBtnLabel(); saveGame(); };
 
         // Звук клика для всех кнопок интерфейса
         document.querySelectorAll('.btn, .tower-btn').forEach(b => b.addEventListener('click', () => playClick()));
@@ -1473,13 +1501,17 @@
             selectedTower = null; updateSelectedInfo();
         });
 
-        canvas.addEventListener('mousemove', (e) => {
+        // pointer-события вместо mousemove: работают и для тача — подсветка клетки
+        // и призрак постройки видны на мобильных, до тапа
+        function canvasHoverFromEvent(e) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = VW / rect.width, scaleY = VH / rect.height;
             const mx = (e.clientX - rect.left) * scaleX, my = (e.clientY - rect.top) * scaleY;
             hoverCol = Math.floor(mx / CELL);
             hoverRow = Math.floor(my / CELL);
-        });
+        }
+        canvas.addEventListener('pointermove', canvasHoverFromEvent);
+        canvas.addEventListener('pointerdown', canvasHoverFromEvent); // на таче мыши нет — клетка подсвечивается с первого касания
         canvas.addEventListener('mouseleave', () => { hoverCol = -1; hoverRow = -1; });
 
         // Отрисовка
