@@ -614,7 +614,7 @@ canvas, .btn, .tower-btn, #volume-slider { touch-action: manipulation; }
 @media (orientation: portrait) and (max-width: 700px) {
     #top-bar, #bottom-bar { position: static; align-self: stretch; width: auto; margin: 4px; }
     #fs-btn { position: static; } /* из угла строки статов — в ряд кнопок */
-    #multiboard { position: static; width: auto; margin: 4px; max-height: none; }
+    #multiboard { position: static; width: auto; margin: 4px; max-height: 30vh; } /* свой скролл: колонка должна влезть в экран, иначе до башен не дотянуться */
     #bottom-bar { flex-direction: column; align-items: stretch; }
     .info-panel { max-width: 100%; justify-content: center; }
     /* пилюли ресурсов не переносятся (единственный ряд без wrap) — распирали обёртку до 459px при окне 393px */
