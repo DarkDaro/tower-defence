@@ -208,7 +208,7 @@
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
         const VW = 1792, VH = 1008;             // логический размер поля
-        const DPR = Math.min(2, window.devicePixelRatio || 1); // плотность пикселей экрана
+        const DPR = Math.min(3, window.devicePixelRatio || 1); // плотность пикселей экрана
         canvas.width = VW * DPR; canvas.height = VH * DPR;     // физический буфер (чёткость)
         ctx.imageSmoothingQuality = 'high';
         const CELL = 56;
@@ -326,7 +326,7 @@
             else { r *= (1+k); g *= (1+k); b *= (1+k); }
             return `rgb(${r|0},${g|0},${b|0})`;
         }
-        const SPRITE_Q = 2; // спрайты рендерятся в 2х разрешении и уменьшаются при отрисовке
+        const SPRITE_Q = 3; // спрайты рендерятся в утроенном разрешении и уменьшаются при отрисовке
         function makeSprite(size, paint) {
             const c = document.createElement('canvas');
             c.width = size*SPRITE_Q; c.height = size*SPRITE_Q;
