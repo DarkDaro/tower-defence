@@ -597,26 +597,26 @@
             { name:'Мышь', emoji:'🦇', hp:55, speed:125, armor:0, resist:{}, reward:13, color:'#424242', flying:true },
             { name:'Скелет', emoji:'💀', hp:130, speed:70, armor:15, resist:{}, reward:25, color:'#ECEFF1' },
             { name:'Паук', emoji:'🕷️', hp:80, speed:95, armor:5, resist:{poison:0.5}, reward:17, color:'#880E4F' },
-            { name:'Орк', emoji:'👹', hp:170, speed:75, armor:8, resist:{}, berserk:true, reward:30, color:'#4E342E' },
-            { name:'Темный маг', emoji:'🧙‍♂️', hp:120, speed:58, armor:5, resist:{magic:0.3}, healer:true, reward:33, color:'#311B92' },
-            { name:'Дрейк', emoji:'🐉', hp:260, speed:55, armor:12, resist:{fire:0.4}, reward:42, color:'#BF360C', flying:true },
-            { name:'Рыцарь', emoji:'👑', hp:340, speed:45, armor:20, resist:{physical:0.25}, shield:true, reward:55, color:'#FFD700' },
-            { name:'Призрак', emoji:'👻', hp:70, speed:90, armor:0, resist:{}, reward:20, color:'#88ccff', canInvisible:true },
-            { name:'Берсерк', emoji:'🪓', hp:200, speed:85, armor:5, resist:{}, reward:28, color:'#cc3333', canInvuln:true, berserk:true, size:0.85 },
-            { name:'Страж', emoji:'🛡️', hp:250, speed:50, armor:15, resist:{}, reward:30, color:'#4488ff', dmgShield:true },
-            { name:'Шаман ветра', emoji:'🌀', hp:120, speed:70, armor:0, resist:{}, reward:25, color:'#66ddaa', auraSpeed:1.3, auraRadius:100 },
-            { name:'Горгулья', emoji:'🗿', hp:300, speed:45, armor:25, resist:{physical:0.2}, reward:35, color:'#888888', flying:true },
-            { name:'Некромант', emoji:'💀', hp:150, speed:55, armor:5, resist:{magic:0.3}, healer:true, reward:35, color:'#660066' }
+            { name:'Орк', emoji:'👹', hp:170, speed:75, armor:8, resist:{}, berserk:true, reward:20, color:'#4E342E' },
+            { name:'Темный маг', emoji:'🧙‍♂️', hp:120, speed:58, armor:5, resist:{magic:0.3}, healer:true, reward:22, color:'#311B92' },
+            { name:'Дрейк', emoji:'🐉', hp:260, speed:55, armor:12, resist:{fire:0.4}, reward:16, color:'#BF360C', flying:true },
+            { name:'Рыцарь', emoji:'👑', hp:340, speed:45, armor:20, resist:{physical:0.25}, shield:true, reward:20, color:'#FFD700' },
+            { name:'Призрак', emoji:'👻', hp:70, speed:90, armor:0, resist:{}, reward:14, color:'#88ccff', canInvisible:true },
+            { name:'Берсерк', emoji:'🪓', hp:200, speed:85, armor:5, resist:{}, reward:14, color:'#cc3333', canInvuln:true, berserk:true, size:0.85 },
+            { name:'Страж', emoji:'🛡️', hp:250, speed:50, armor:15, resist:{}, reward:16, color:'#4488ff', dmgShield:true },
+            { name:'Шаман ветра', emoji:'🌀', hp:120, speed:70, armor:0, resist:{}, reward:16, color:'#66ddaa', auraSpeed:1.3, auraRadius:100 },
+            { name:'Горгулья', emoji:'🗿', hp:300, speed:45, armor:25, resist:{physical:0.2}, reward:18, color:'#888888', flying:true },
+            { name:'Некромант', emoji:'💀', hp:150, speed:55, armor:5, resist:{magic:0.3}, healer:true, reward:12, color:'#660066' }
         ];
         const bossTypes = [
-            { name:'Вождь орков', emoji:'👹', hp:1200, speed:42, armor:15, resist:{}, berserk:true, reward:130, color:'#8B0000', size:1.6 },
-            { name:'Королева пауков', emoji:'🕷️', hp:1000, speed:48, armor:10, resist:{poison:0.7}, poison:true, reward:120, color:'#4A148C', size:1.6 },
-            { name:'Драконий лорд', emoji:'🐉', hp:1500, speed:38, armor:20, resist:{fire:0.6}, aoeDamage:true, reward:160, color:'#B71C1C', size:1.8, flying:true },
-            { name:'Лич-король', emoji:'🧙‍♂️', hp:1400, speed:40, armor:12, resist:{magic:0.5}, healer:true, reward:180, color:'#311B92', size:1.7 },
-            { name:'Владыка демонов', emoji:'👑', hp:2200, speed:36, armor:25, resist:{physical:0.3}, shield:true, berserk:true, reward:260, color:'#1a1a1a', size:2.0 },
-            { name:'Владыка теней', emoji:'👤', hp:1800, speed:45, armor:10, resist:{magic:0.3}, reward:200, color:'#1a1a3a', size:1.7, canInvisible:true },
-            { name:'Железный голем', emoji:'🗿', hp:2500, speed:30, armor:30, resist:{physical:0.3}, reward:220, color:'#555555', size:2.0, dmgShield:true },
-            { name:'Ходячий ветер', emoji:'💨', hp:1600, speed:55, armor:8, resist:{}, reward:240, color:'#88ddcc', size:1.6, auraSpeed:1.4, auraRadius:150, canInvuln:true, flying:true }
+            { name:'Вождь орков', emoji:'👹', hp:1200, speed:42, armor:15, resist:{}, berserk:true, reward:110, color:'#8B0000', size:1.6 },
+            { name:'Королева пауков', emoji:'🕷️', hp:1000, speed:48, armor:10, resist:{poison:0.7}, poison:true, reward:85, color:'#4A148C', size:1.6 },
+            { name:'Драконий лорд', emoji:'🐉', hp:1500, speed:38, armor:20, resist:{fire:0.6}, aoeDamage:true, reward:50, color:'#B71C1C', size:1.8, flying:true },
+            { name:'Лич-король', emoji:'🧙‍♂️', hp:1400, speed:40, armor:12, resist:{magic:0.5}, healer:true, reward:130, color:'#311B92', size:1.7 },
+            { name:'Владыка демонов', emoji:'👑', hp:2200, speed:36, armor:25, resist:{physical:0.3}, shield:true, berserk:true, reward:180, color:'#1a1a1a', size:2.0 },
+            { name:'Владыка теней', emoji:'👤', hp:1800, speed:45, armor:10, resist:{magic:0.3}, reward:145, color:'#1a1a3a', size:1.7, canInvisible:true },
+            { name:'Железный голем', emoji:'🗿', hp:2500, speed:30, armor:30, resist:{physical:0.3}, reward:160, color:'#555555', size:2.0, dmgShield:true },
+            { name:'Ходячий ветер', emoji:'💨', hp:1600, speed:55, armor:8, resist:{}, reward:170, color:'#88ddcc', size:1.6, auraSpeed:1.4, auraRadius:150, canInvuln:true, flying:true }
         ];
         // спрайты существ (нужны enemyBase/bossTypes)
         const ANIM_FRAMES = 4; // кадры цикла шага/взмаха на существо (fallback)
