@@ -926,7 +926,7 @@
             [{type:1,count:20},{type:3,count:16}],
             [{type:2,count:16},{type:4,count:12},{boss:0}],
             [{type:0,count:24},{type:3,count:16},{type:5,count:12},{type:10,count:8}],
-            [{type:1,count:28},{type:4,count:16},{type:6,count:10},{type:11,count:6}],
+            [{type:1,count:24},{type:4,count:13},{type:6,count:8},{type:11,count:5}], // волна 7 сглажена: было 28/16/10/6 = 60 — шип −9…−11 жизней при недостроенной защите; стало 50
             [{type:2,count:24},{type:5,count:16},{type:7,count:10},{type:12,count:6}],
             [{type:3,count:28},{type:6,count:16},{type:8,count:8},{type:13,count:6}],
             [{type:0,count:28},{type:4,count:20},{type:9,count:10},{type:10,count:8},{boss:1}],
