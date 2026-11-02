@@ -1,10 +1,12 @@
     (function() {
+        // техручки рендера/таймингов/клавиш — js/config.js (баланс — в balance.js)
+        const CFG = window.TD_CONFIG;
         // ---------- AUDIO ENGINE v2 (процедурный синтез: слои, фильтры, компрессор) ----------
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         let audioCtx = null;
         let soundEnabled = true;
         let masterGain = null;
-        let volume = 0.8;
+        let volume = CFG.sound.defaultVolume;
         let noiseBuf = null; // общий буфер белого шума
         function initAudio() {
             if (!audioCtx) {
@@ -31,7 +33,7 @@
         document.addEventListener('keydown', audioInitOnce);
         // Троттлинг: при 30+ врагах звуки выстрелов сливаются в треск
         let lastShootSound = 0;
-        const SHOOT_SOUND_MIN_GAP = 0.035;
+        const SHOOT_SOUND_MIN_GAP = CFG.sound.shootGap;
         // Тон: для грубых волн срезаем верх низкочастотным фильтром, чтобы не звенело
         function playTone(freq, dur, type='sine', vol=0.08, attack=0.005, freqEnd=null) {
             if (!audioCtx || !soundEnabled) return;
@@ -48,7 +50,7 @@
                 let node = osc;
                 if (type === 'sawtooth' || type === 'square') {
                     const lp = audioCtx.createBiquadFilter();
-                    lp.type = 'lowpass'; lp.frequency.value = 2200; lp.Q.value = 0.6;
+                    lp.type = 'lowpass'; lp.frequency.value = CFG.sound.lowpassHz; lp.Q.value = 0.6;
                     osc.connect(lp); node = lp;
                 }
                 node.connect(gain); gain.connect(masterGain || audioCtx.destination);
@@ -201,29 +203,29 @@
             t.innerHTML = msg;
             t.classList.add('show');
             if (toastTimer) clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => t.classList.remove('show'), 1500);
+            toastTimer = setTimeout(() => t.classList.remove('show'), CFG.timing.toastMs);
         }
 
         // ---------- CANVAS ----------
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
-        const VW = 1792, VH = 1008;             // логический размер поля
-        const DPR = Math.min(3, window.devicePixelRatio || 1); // плотность пикселей экрана
+        const VW = CFG.view.VW, VH = CFG.view.VH;  // логический размер поля
+        const DPR = Math.min(CFG.view.dprCap, window.devicePixelRatio || 1); // плотность пикселей экрана
         canvas.width = VW * DPR; canvas.height = VH * DPR;     // физический буфер (чёткость)
         ctx.imageSmoothingQuality = 'high';
-        const CELL = 56;
-        const COLS = 32;
-        const ROWS = 18;
+        const CELL = CFG.view.cell;
+        const COLS = CFG.view.cols;
+        const ROWS = CFG.view.rows;
 
         function resize() {
             // почти во всё окно: панели перекрывают поле, а не сжимают его.
             // Пол 0.12 вместо 0.25: в портрете телефона (393px) пол 0.25 делал канву
             // (448px) шире окна — она резалась за краями; теперь честно вписываемся.
-            const scale = Math.max(0.12, Math.min((window.innerWidth - 24) / VW, (window.innerHeight - 24) / VH));
+            const scale = Math.max(CFG.view.minScale, Math.min((window.innerWidth - CFG.view.windowMargin) / VW, (window.innerHeight - CFG.view.windowMargin) / VH));
             canvas.style.width = `${Math.round(VW * scale)}px`;
             canvas.style.height = `${Math.round(VH * scale)}px`;
             // физический буфер под реальный размер на экране — чёткость на любом окне
-            const q = Math.min(DPR, 4200 / (VW * scale));
+            const q = Math.min(DPR, CFG.view.bufferCap / (VW * scale));
             canvas.width = Math.max(1, Math.round(VW * scale * q));
             canvas.height = Math.max(1, Math.round(VH * scale * q));
             ctx.setTransform(canvas.width / VW, 0, 0, canvas.height / VH, 0, 0);
@@ -307,7 +309,7 @@
             else { r *= (1+k); g *= (1+k); b *= (1+k); }
             return `rgb(${r|0},${g|0},${b|0})`;
         }
-        const SPRITE_Q = 3; // спрайты рендерятся в утроенном разрешении и уменьшаются при отрисовке
+        const SPRITE_Q = CFG.sprites.quality; // спрайты рендерятся в утроенном разрешении и уменьшаются при отрисовке
         function makeSprite(size, paint) {
             const c = document.createElement('canvas');
             c.width = size*SPRITE_Q; c.height = size*SPRITE_Q;
@@ -438,7 +440,7 @@
         }
         // enemySprites/bossSprites создаются после объявления enemyBase/bossTypes
         const towerSprites = {};
-        for (const key in towerDefs) towerSprites[key] = makeSprite(72, (g,s) => paintTowerSprite(g, s, key, towerDefs[key]));
+        for (const key in towerDefs) towerSprites[key] = makeSprite(CFG.sprites.towerSize, (g,s) => paintTowerSprite(g, s, key, towerDefs[key]));
         // ---------- PNG-спрайты (этап 5): бестиарий в файлах, fallback — процедурные ----------
         const ENEMY_FILES = ['boar','wolf','zombie','bat','skeleton','spider','orc','dark_mage','drake','knight','ghost','berserker','sentinel','wind_shaman','gargoyle','necromancer'];
         const BOSS_FILES = ['orc_chief','spider_queen','dragon_lord','lich_king','demon_lord','shadow_lord','iron_golem','wind_walker'];
@@ -560,9 +562,9 @@
         const bossTypes = TD_BALANCE.bosses;
         const AB = TD_BALANCE.abilities; // числовые ручки способностей — из конфига
         // спрайты существ (нужны enemyBase/bossTypes)
-        const ANIM_FRAMES = 4; // кадры цикла шага/взмаха на существо (fallback)
-        const enemySprites = enemyBase.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(80, (g,s) => paintCreature(g, s, d, creatureKind(d), false, f))));
-        const bossSprites = bossTypes.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(98, (g,s) => paintCreature(g, s, d, creatureKind(d), true, f))));
+        const ANIM_FRAMES = CFG.sprites.animFrames; // кадры цикла шага/взмаха на существо (fallback)
+        const enemySprites = enemyBase.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(CFG.sprites.enemySize, (g,s) => paintCreature(g, s, d, creatureKind(d), false, f))));
+        const bossSprites = bossTypes.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(CFG.sprites.bossSize, (g,s) => paintCreature(g, s, d, creatureKind(d), true, f))));
         // dataURL спрайтов считаем ОДИН раз (иначе 24 toDataURL каждый кадр)
         const killIconUrls = [...pngEnemies, ...pngBosses].map(im => im.src);
 
@@ -978,7 +980,7 @@
                 } else {
                     document.getElementById('start-wave-btn').disabled = false;
                     if (autoStart && !paused && !gameOver) {
-                        autoTimer = 0.5; // сек игрового времени до авто-старта
+                        autoTimer = CFG.timing.autoStartDelay; // сек игрового времени до авто-старта
                     }
                 }
             }
@@ -1214,8 +1216,10 @@
             if (paused) syncPauseMenu();
         }
         document.getElementById('pm-resume').onclick = () => setPaused(false);
+        // кнопка скорости крутит цикл из TD_CONFIG.timing.speeds (1→2→3→1)
+        function nextSpeed() { const s = CFG.timing.speeds; return s[(s.indexOf(gameSpeed) + 1) % s.length]; }
         document.getElementById('pm-speed').onclick = () => {
-            gameSpeed = gameSpeed === 1 ? 2 : gameSpeed === 2 ? 3 : 1;
+            gameSpeed = nextSpeed();
             document.getElementById('speed-btn').innerHTML = `<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 4l9 8-9 8z" fill="#c9c2b4"/><path d="M12 4l9 8-9 8z" fill="#c9c2b4"/></svg></span> x${gameSpeed}`;
             syncPauseMenu();
             saveGame();
@@ -1235,7 +1239,7 @@
         document.getElementById('pm-restart').onclick = () => resetGame();
 
         document.getElementById('pause-btn').onclick = ()=>{ setPaused(!paused); };
-        document.getElementById('speed-btn').onclick = ()=>{ gameSpeed = gameSpeed===1 ? 2 : gameSpeed===2 ? 3 : 1; document.getElementById('speed-btn').innerHTML = speedBtnLabel(); saveGame(); };
+        document.getElementById('speed-btn').onclick = ()=>{ gameSpeed = nextSpeed(); document.getElementById('speed-btn').innerHTML = speedBtnLabel(); saveGame(); };
         document.getElementById('auto-btn').onclick = ()=>{ autoStart = !autoStart; document.getElementById('auto-btn').innerHTML = autoBtnLabel(autoStart); saveGame(); };
         document.getElementById('lightning-btn').onclick = castLightning;
         document.getElementById('frost-btn').onclick = castFrost;
@@ -1296,7 +1300,7 @@
         const portraitQuery = window.matchMedia('(orientation: portrait)');
         function checkOrientation() {
             if (!rotateOverlay) return;
-            const show = portraitQuery.matches && window.innerWidth < 700 && !rotateDismissed;
+            const show = portraitQuery.matches && window.innerWidth < CFG.view.portraitPx && !rotateDismissed;
             rotateOverlay.style.display = show ? 'flex' : 'none';
         }
         if (rotateOverlay) {
@@ -1364,7 +1368,8 @@
         document.querySelectorAll('.btn, .tower-btn').forEach(b => b.addEventListener('click', () => playClick()));
 
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
+            // раскладка — в TD_CONFIG.keys (Escape/пробел, U='г' и R='к' на ЙЦУКЕН)
+            if (CFG.keys.pause.includes(e.key)) {
                 if (selectedBuildType) {
                     selectedBuildType = null;
                     document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('active'));
@@ -1373,7 +1378,7 @@
                     setPaused(!paused);
                 }
             }
-            if ((e.key === 'u' || e.key === 'U') && !paused && selectedTower && selectedTower.level < 4) {
+            if (CFG.keys.upgrade.includes(e.key) && !paused && selectedTower && selectedTower.level < 4) {
                 if (gold >= selectedTower.upgradeCost()) {
                     gold -= selectedTower.upgradeCost();
                     selectedTower.level++;
@@ -1385,12 +1390,12 @@
                     showToast('Недостаточно золота');
                 }
             }
-            if (e.key === ' ' && !waveActive && !gameOver && !victory) {
+            if (CFG.keys.wave.includes(e.key) && !waveActive && !gameOver && !victory) {
                 e.preventDefault();
                 startWave();
             }
-            // R — быстрый рестарт после поражения/победы
-            if ((e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') && (gameOver || victory)) {
+            // рестарт — только после победы/поражения
+            if (CFG.keys.restart.includes(e.key) && (gameOver || victory)) {
                 resetGame();
             }
         });
@@ -1451,8 +1456,8 @@
             ctx.clearRect(0,0,VW,VH);
             ctx.save();
             if (screenShake > 0) {
-                const shakeX = (Math.random() - 0.5) * screenShake * 20;
-                const shakeY = (Math.random() - 0.5) * screenShake * 20;
+                const shakeX = (Math.random() - 0.5) * screenShake * CFG.timing.shakeAmp;
+                const shakeY = (Math.random() - 0.5) * screenShake * CFG.timing.shakeAmp;
                 ctx.translate(shakeX, shakeY);
             }
             for (let row=0; row<ROWS; row++) for (let col=0; col<COLS; col++) {
@@ -2146,7 +2151,7 @@
         let lastTime = 0;
         function loop(ts) {
             if (!lastTime) lastTime = ts;
-            let dt = Math.min(0.1, (ts - lastTime)/1000);
+            let dt = Math.min(CFG.timing.dtCap, (ts - lastTime)/1000);
             lastTime = ts;
             if (!paused && !gameOver && !victory) {
                 const eDt = dt * gameSpeed;
@@ -2158,7 +2163,7 @@
                     spawnClock += eDt;
                     while (spawnQueue.length && spawnQueue[0].t <= spawnClock) {
                         const item = spawnQueue.shift();
-                        if (item.boss !== undefined) { enemies.push(new Enemy(item.boss, waveNum, true)); screenShake = Math.max(screenShake, 0.5); playBossSpawn(); }
+                        if (item.boss !== undefined) { enemies.push(new Enemy(item.boss, waveNum, true)); screenShake = Math.max(screenShake, CFG.timing.bossShake); playBossSpawn(); }
                         else enemies.push(new Enemy(item.type, waveNum));
                     }
                     if (!spawnQueue.length) waveSpawningComplete = true;
