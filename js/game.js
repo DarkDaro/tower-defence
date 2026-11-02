@@ -236,8 +236,8 @@
         resize();
 
         // ---------- GAME STATE ----------
-        let gold = 200, lives = 20, waveNum = 0, waveActive = false, waveSpawningComplete = true, autoStart = false;
-        let mana = 0, maxMana = 1000, manaRegen = 15;
+        let gold = TD_BALANCE.start.gold, lives = TD_BALANCE.start.lives, waveNum = 0, waveActive = false, waveSpawningComplete = true, autoStart = false;
+        let mana = 0, maxMana = TD_BALANCE.mana.max, manaRegen = TD_BALANCE.mana.regen;
         let enemies = [], towers = [], projectiles = [], effects = [], particles = [], floatingTexts = [];
         let decals = []; // пятна крови на земле — рисуются ПОД сущностями, копятся как следы боёв
         let screenShake = 0;
@@ -304,33 +304,7 @@
         for (let i=0; i<8; i++) fogBanks.push({ x: Math.random()*VW, y: Math.random()*VH, r: 130+Math.random()*170, vx: (Math.random()-0.5)*22, vy: (Math.random()-0.5)*14, ph: Math.random()*Math.PI*2 });
 
         // ---------- TOWERS ----------
-        const towerDefs = {
-            archer: { name:'Лучник', icon:'🏹', cost:60,
-                damage:[20,34,50,70], range:[150,170,190,210], cooldown:[0.75,0.63,0.50,0.44], damageType:'physical',
-                projColor:'#ffaa00', projSpeed:500, desc:'Быстрая атака, мультивыстрел на 4 ур.' },
-            cannon: { name:'Пушка', icon:'💣', cost:90,
-                damage:[40,62,88,120], range:[130,145,160,175], cooldown:[1.75,1.50,1.25,1.13], aoe:[55,65,75,90], damageType:'physical',
-                projColor:'#ff4400', projSpeed:340, desc:'Взрывной урон по области' },
-            ice: { name:'Ледяная', icon:'<span class="ic ic-blue"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g stroke="#8ecbff" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M4 6l16 12M20 6L4 18"/></g></svg></span>', cost:70,
-                damage:[16,30,46,64], range:[140,160,180,200], cooldown:[1.13,1.00,0.88,0.75], slow:[0.4,0.3,0.2,0.15], slowDur:2.5, damageType:'ice',
-                projColor:'#88ccff', projSpeed:400, desc:'Замедление, шанс заморозки' },
-            magic: { name:'Чернокнижник', icon:'<span class="ic ic-mana"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#a58cff" stroke="#3a2470" stroke-width="2"/><ellipse cx="9.5" cy="9" rx="2.6" ry="1.6" fill="#ffffff" opacity="0.75"/><path d="M6 19l6 3 6-3" fill="none" stroke="#3a2470" stroke-width="2" stroke-linecap="round"/></svg></span>', cost:110,
-                damage:[45,72,102,140], range:[140,150,160,170], cooldown:[2.13,1.88,1.63,1.38], ignoreArmor:true, damageType:'magic',
-                projColor:'#cc66ff', projSpeed:320, desc:'Игнорирует броню' },
-            poison: { name:'Алхимик', icon:'🧪', cost:80,
-                damage:[20,36,54,76], range:[130,145,160,175], cooldown:[1.25,1.13,1.00,0.88], dotDmg:[12,22,34,48], dotDur:3, damageType:'poison',
-                projColor:'#88cc44', projSpeed:360, desc:'Яд на 3 сек., эпидемия на 4 ур.' },
-            lightning: { name:'Шаман', icon:'<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13 2L5 14h5l-1.5 8L19 9h-5.5z" fill="#ffcf7a" stroke="#9a6a10" stroke-width="1.2"/></svg></span>', cost:100,
-                damage:[30,48,70,95], range:[140,155,170,185], cooldown:[1.50,1.38,1.25,1.06], chain:3, chainRange:90, damageType:'lightning',
-                projColor:'#ffdd00', projSpeed:550, desc:'Цепная молния до 3 целей' },
-            buffer: { name:'Барабан', icon:'🥁', cost:120,
-                damage:[0,0,0,0], range:[0,0,0,0], cooldown:[99,99,99,99], damageType:'none',
-                auraBuff:[0.25,0.30,0.35,0.40], auraRadius:[120,140,160,180],
-                projColor:'#ffcc00', projSpeed:0, desc:'Баффает урон соседних башен +25-40%' },
-            siege: { name:'Осадная', icon:'⚔️', cost:100,
-                damage:[32,52,76,105], range:[140,155,170,185], cooldown:[2.00,1.75,1.50,1.25], ignoreArmor:true, damageType:'physical',
-                projColor:'#cccccc', projSpeed:380, desc:'Пробивает броню, высокий урон' }
-        };
+        const towerDefs = TD_BALANCE.towers;
 
         // ---------- SPRITE ENGINE (тёмное фэнтези, процедурная живопись) ----------
         function hexShade(hex, k) {
@@ -590,34 +564,8 @@
         createTowerButtons();
 
         // ---------- ENEMIES ----------
-        const enemyBase = [
-            { name:'Кабан', emoji:'🐗', hp:100, speed:65, armor:0, resist:{}, reward:18, color:'#8B4513' },
-            { name:'Волк', emoji:'🐺', hp:65, speed:105, armor:0, resist:{}, reward:15, color:'#A0A0A0' },
-            { name:'Зомби', emoji:'🧟', hp:180, speed:55, armor:10, resist:{}, reward:22, color:'#2E7D32' },
-            { name:'Мышь', emoji:'🦇', hp:55, speed:125, armor:0, resist:{}, reward:13, color:'#424242', flying:true },
-            { name:'Скелет', emoji:'💀', hp:130, speed:70, armor:15, resist:{}, reward:25, color:'#ECEFF1' },
-            { name:'Паук', emoji:'🕷️', hp:80, speed:95, armor:5, resist:{poison:0.5}, reward:17, color:'#880E4F' },
-            { name:'Орк', emoji:'👹', hp:170, speed:75, armor:8, resist:{}, berserk:true, reward:20, color:'#4E342E' },
-            { name:'Темный маг', emoji:'🧙‍♂️', hp:120, speed:58, armor:5, resist:{magic:0.3}, healer:true, reward:22, color:'#311B92' },
-            { name:'Дрейк', emoji:'🐉', hp:260, speed:55, armor:12, resist:{fire:0.4}, reward:16, color:'#BF360C', flying:true },
-            { name:'Рыцарь', emoji:'👑', hp:340, speed:45, armor:20, resist:{physical:0.25}, shield:true, reward:20, color:'#FFD700' },
-            { name:'Призрак', emoji:'👻', hp:70, speed:90, armor:0, resist:{}, reward:14, color:'#88ccff', canInvisible:true },
-            { name:'Берсерк', emoji:'🪓', hp:200, speed:85, armor:5, resist:{}, reward:14, color:'#cc3333', canInvuln:true, berserk:true, size:0.85 },
-            { name:'Страж', emoji:'🛡️', hp:250, speed:50, armor:15, resist:{}, reward:16, color:'#4488ff', dmgShield:true },
-            { name:'Шаман ветра', emoji:'🌀', hp:120, speed:70, armor:0, resist:{}, reward:16, color:'#66ddaa', auraSpeed:1.3, auraRadius:100 },
-            { name:'Горгулья', emoji:'🗿', hp:300, speed:45, armor:25, resist:{physical:0.2}, reward:18, color:'#888888', flying:true },
-            { name:'Некромант', emoji:'💀', hp:150, speed:55, armor:5, resist:{magic:0.3}, healer:true, reward:12, color:'#660066' }
-        ];
-        const bossTypes = [
-            { name:'Вождь орков', emoji:'👹', hp:1200, speed:42, armor:15, resist:{}, berserk:true, reward:110, color:'#8B0000', size:1.6 },
-            { name:'Королева пауков', emoji:'🕷️', hp:1000, speed:48, armor:10, resist:{poison:0.7}, poison:true, reward:85, color:'#4A148C', size:1.6 },
-            { name:'Драконий лорд', emoji:'🐉', hp:1500, speed:38, armor:20, resist:{fire:0.6}, aoeDamage:true, reward:50, color:'#B71C1C', size:1.8, flying:true },
-            { name:'Лич-король', emoji:'🧙‍♂️', hp:1400, speed:40, armor:12, resist:{magic:0.5}, healer:true, reward:130, color:'#311B92', size:1.7 },
-            { name:'Владыка демонов', emoji:'👑', hp:2200, speed:36, armor:25, resist:{physical:0.3}, shield:true, berserk:true, reward:180, color:'#1a1a1a', size:2.0 },
-            { name:'Владыка теней', emoji:'👤', hp:1800, speed:45, armor:10, resist:{magic:0.3}, reward:145, color:'#1a1a3a', size:1.7, canInvisible:true },
-            { name:'Железный голем', emoji:'🗿', hp:2500, speed:30, armor:30, resist:{physical:0.3}, reward:160, color:'#555555', size:2.0, dmgShield:true },
-            { name:'Ходячий ветер', emoji:'💨', hp:1600, speed:55, armor:8, resist:{}, reward:170, color:'#88ddcc', size:1.6, auraSpeed:1.4, auraRadius:150, canInvuln:true, flying:true }
-        ];
+        const enemyBase = TD_BALANCE.enemies;
+        const bossTypes = TD_BALANCE.bosses;
         // спрайты существ (нужны enemyBase/bossTypes)
         const ANIM_FRAMES = 4; // кадры цикла шага/взмаха на существо (fallback)
         const enemySprites = enemyBase.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(80, (g,s) => paintCreature(g, s, d, creatureKind(d), false, f))));
@@ -627,11 +575,11 @@
 
         function getDifficultyMultiplier(wave) {
             // плавная экспонента вместо ступеней: волна 10 ≈ ×2.0, 20 ≈ ×4.3, 30 ≈ ×9.3
-            return Math.pow(1.08, wave - 1);
+            return Math.pow(TD_BALANCE.economy.hpGrowth, wave - 1);
         }
         function getArmorMultiplier(wave) {
             // броня растёт втрое медленнее HP, чтобы не упираться в кап 60%
-            return 1 + (getDifficultyMultiplier(wave) - 1) * 0.3;
+            return 1 + (getDifficultyMultiplier(wave) - 1) * TD_BALANCE.economy.armorGrowth;
         }
 
         class Enemy {
@@ -646,13 +594,14 @@
                 // модификатор волны (waveNumber 0-based, getWaveMod ждёт номер с 1)
                 const mod = getWaveMod(waveNumber + 1);
                 if (mod) {
-                    if (mod.id === 'speed') this.baseSpeed *= 1.25;
-                    if (mod.id === 'armor') this.armor += 10;
-                    if (mod.id === 'regen') this.regen = 0.01;
-                    if (mod.id === 'shield') this.waveShield = 0.25;
+                    const mfx = TD_BALANCE.waveFx;
+                    if (mod.id === 'speed') this.baseSpeed *= mfx.speedMult;
+                    if (mod.id === 'armor') this.armor += mfx.armorAdd;
+                    if (mod.id === 'regen') this.regen = mfx.regenRate;
+                    if (mod.id === 'shield') this.waveShield = mfx.shieldCut;
                 }
                 this.resist = src.resist || {};
-                this.reward = Math.max(1, Math.round(src.reward * 0.75)); // экономика строже
+                this.reward = Math.max(1, Math.round(src.reward * TD_BALANCE.economy.rewardMult)); // экономика строже
                 this.color = src.color;
                 this.size = src.size || 1.0;
                 this.emoji = src.emoji || '❓';
@@ -802,8 +751,8 @@
                     auraBuff:d.auraBuff?d.auraBuff[l]:0, auraRadius:d.auraRadius?d.auraRadius[l]:0,
                     level:this.level };
             }
-            upgradeCost() { return this.level<4 ? 120 + this.level*90 : null; }
-            sellValue() { let sum = towerDefs[this.type].cost; for (let i=1; i<this.level; i++) sum += 120 + i*90; return Math.floor(sum*0.4); }
+            upgradeCost() { return this.level<4 ? TD_BALANCE.economy.upgradeBase + this.level*TD_BALANCE.economy.upgradeStep : null; }
+            sellValue() { let sum = towerDefs[this.type].cost; for (let i=1; i<this.level; i++) sum += TD_BALANCE.economy.upgradeBase + i*TD_BALANCE.economy.upgradeStep; return Math.floor(sum*TD_BALANCE.economy.sellRatio); }
             update(dt, enemiesList) {
                 this.cdTimer -= dt; this.target = null;
                 if (this.type === 'buffer') return;
@@ -912,51 +861,11 @@
         }
 
         // ---------- WAVE MODIFIERS ----------
-        const waveMods = [
-            { id:'speed', icon:'<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 9h11a2.5 2.5 0 10-2.5-2.5M3 13h15a2.5 2.5 0 11-2.5 2.5M3 17h8" fill="none" stroke="#c9c2b4" stroke-width="2" stroke-linecap="round"/></svg></span>', name:'Ураган: +25% скорости врагов' },
-            { id:'armor', icon:'<span class="ic ic-blue"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3l7 3v5c0 5-3.2 8.4-7 10-3.8-1.6-7-5-7-10V6z" fill="#4a6a9a" stroke="#8ecbff" stroke-width="1.6"/><path d="M12 3v18" stroke="#8ecbff" stroke-width="1.2"/></svg></span>', name:'Панцирь: +10 брони врагам' },
-            { id:'regen', icon:'<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 20C6 15 3.5 11.5 3.5 8.5 3.5 6 5.5 4 8 4c1.7 0 3.2 1 4 2.4C12.8 5 14.3 4 16 4c2.5 0 4.5 2 4.5 4.5 0 3-2.5 6.5-8.5 11.5z" fill="#7dd87a" stroke="#1d4a1d" stroke-width="1.4"/></svg></span>', name:'Регенерация: враги лечатся' },
-            { id:'shield', icon:'<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z" fill="#ffcf7a"/><circle cx="19" cy="18" r="1.6" fill="#ffcf7a"/><circle cx="5" cy="17" r="1.2" fill="#ffcf7a"/></svg></span>', name:'Барьер: враги получают -25% урона' },
-            { id:'night', icon:'<span class="ic ic-blue"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 14.5A8.5 8.5 0 019.5 4 8.5 8.5 0 1020 14.5z" fill="#8ecbff" stroke="#2a4a70" stroke-width="1.4"/></svg></span>', name:'Ночь: темно, светят факелы' },
-            { id:'fog',   icon:'<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 9c3 0 3-2 6-2s3 2 6 2 3-2 6-2M3 14c3 0 3-2 6-2s3 2 6 2 3-2 6-2M3 19c3 0 3-2 6-2s3 2 6 2 3-2 6-2" fill="none" stroke="#c9c2b4" stroke-width="1.8" stroke-linecap="round" opacity="0.85"/></svg></span>', name:'Туман: видимость снижена' },
-        ];
-        function getWaveMod(n) { return n >= 6 ? waveMods[(n - 6) % waveMods.length] : null; }
+        const waveMods = TD_BALANCE.waveMods;
+        function getWaveMod(n) { return n >= TD_BALANCE.modsFromWave ? waveMods[(n - TD_BALANCE.modsFromWave) % waveMods.length] : null; }
 
         // ---------- WAVES ----------
-        const waves = [
-            // волны 1-3 урезаны по замеру: 3 лучника (весь старт-бюджет) убивали лишь 5 из 12
-            // (стрельба фокусом на переднего + перелёт), 7 протечек = поражение. 8 кабанов ≈ 3 протечки.
-            [{type:0,count:8}],
-            [{type:1,count:12}], // волки 105px/s: при 18 шт. массовая протечка даже с добором башен
-            [{type:0,count:12},{type:2,count:9}],
-            [{type:1,count:20},{type:3,count:16}],
-            [{type:2,count:16},{type:4,count:12},{boss:0}],
-            [{type:0,count:24},{type:3,count:16},{type:5,count:12},{type:10,count:8}],
-            [{type:1,count:24},{type:4,count:13},{type:6,count:8},{type:11,count:5}], // волна 7 сглажена: было 28/16/10/6 = 60 — шип −9…−11 жизней при недостроенной защите; стало 50
-            [{type:2,count:24},{type:5,count:16},{type:7,count:10},{type:12,count:6}],
-            [{type:3,count:28},{type:6,count:16},{type:8,count:8},{type:13,count:6}],
-            [{type:0,count:28},{type:4,count:20},{type:9,count:10},{type:10,count:8},{boss:1}],
-            [{type:1,count:32},{type:5,count:24},{type:8,count:12},{type:11,count:8}],
-            [{type:2,count:28},{type:6,count:20},{type:9,count:12},{type:12,count:8},{type:13,count:6}],
-            [{type:3,count:32},{type:7,count:20},{type:8,count:16},{type:10,count:10},{type:14,count:6}],
-            [{type:4,count:28},{type:8,count:20},{type:9,count:16},{type:11,count:8},{type:15,count:6}],
-            [{type:5,count:32},{type:6,count:24},{type:7,count:20},{type:12,count:10},{boss:2}],
-            [{type:0,count:36},{type:4,count:28},{type:8,count:20},{type:10,count:12},{type:14,count:8}],
-            [{type:1,count:40},{type:5,count:28},{type:9,count:20},{type:11,count:10},{type:13,count:8}],
-            [{type:2,count:36},{type:6,count:28},{type:8,count:24},{type:12,count:10},{type:15,count:8}],
-            [{type:3,count:40},{type:7,count:28},{type:9,count:24},{type:10,count:12},{type:14,count:8}],
-            [{type:4,count:36},{type:6,count:32},{type:8,count:28},{type:11,count:12},{boss:3}],
-            [{type:5,count:40},{type:7,count:32},{type:9,count:28},{type:12,count:12},{type:13,count:10}],
-            [{type:0,count:44},{type:6,count:36},{type:8,count:28},{type:10,count:14},{type:15,count:10}],
-            [{type:1,count:48},{type:7,count:36},{type:9,count:28},{type:11,count:14},{type:14,count:10}],
-            [{type:2,count:44},{type:6,count:40},{type:8,count:32},{type:12,count:14},{boss:0},{boss:1}],
-            [{type:3,count:48},{type:7,count:40},{type:9,count:32},{type:13,count:12},{boss:2},{boss:5}],
-            [{type:4,count:44},{type:8,count:36},{type:9,count:32},{type:10,count:16},{boss:0},{boss:2}],
-            [{type:5,count:48},{type:7,count:40},{type:9,count:36},{type:11,count:16},{boss:1},{boss:3}],
-            [{type:6,count:52},{type:8,count:40},{type:9,count:36},{type:12,count:16},{boss:0},{boss:1},{boss:2}],
-            [{type:7,count:52},{type:8,count:44},{type:9,count:40},{type:14,count:16},{boss:0},{boss:1},{boss:2},{boss:5}],
-            [{type:8,count:48},{type:9,count:44},{type:15,count:20},{boss:0},{boss:1},{boss:2},{boss:3},{boss:4},{boss:5},{boss:6}]
-        ];
+        const waves = TD_BALANCE.waves;
 
         // ---------- GAME FLOW ----------
         function saveGame() {
@@ -969,8 +878,8 @@
             if (!saved) return false;
             try {
                 const state = JSON.parse(saved);
-                gold = state.gold ?? 200;
-                lives = state.lives ?? 20;
+                gold = state.gold ?? TD_BALANCE.start.gold;
+                lives = state.lives ?? TD_BALANCE.start.lives;
                 waveNum = state.waveNum ?? 0;
                 mana = state.mana ?? 0;
                 stats = state.stats || { towersBuilt: 0, goldEarned: 0, enemiesKilled: 0, wavesCompleted: 0 };
@@ -999,7 +908,7 @@
         function resetGame() {
             clearSpawnQueue();
             autoTimer = -1; waveElapsed = 0;
-            gold = 200; lives = 20; waveNum = 0; waveActive = false; waveSpawningComplete = true;
+            gold = TD_BALANCE.start.gold; lives = TD_BALANCE.start.lives; waveNum = 0; waveActive = false; waveSpawningComplete = true;
             enemies = []; towers = []; projectiles = []; effects = []; particles = []; floatingTexts = []; decals = [];
             selectedTower = null; selectedBuildType = null; gameSpeed = 1; paused = false;
             gameOver = false; victory = false; lightningCD = 0; frostCD = 0; fireRainCD = 0;
@@ -1030,10 +939,10 @@
             defs.forEach(group => {
                 if (group.boss !== undefined) {
                     spawnQueue.push({ t: delay, boss: group.boss });
-                    delay += 2;
+                    delay += TD_BALANCE.bossGap;
                 } else {
-                    for (let i=0; i<group.count; i++) spawnQueue.push({ t: delay + i*0.3, type: group.type });
-                    delay += group.count * 0.3;
+                    for (let i=0; i<group.count; i++) spawnQueue.push({ t: delay + i*TD_BALANCE.spawnInterval, type: group.type });
+                    delay += group.count * TD_BALANCE.spawnInterval;
                 }
             });
             spawnQueue.sort((a,b) => a.t - b.t);
@@ -1053,7 +962,7 @@
                 waveActive = false;
                 // бонус за скорость: на длинных петлях карты волны идут ~90с —
                 // старый порог 20с не срабатывал никогда; теперь быстрая зачистка всё же вознаграждается
-                const bonusGold = Math.max(0, Math.floor(30 - waveElapsed * 0.25));
+                const bonusGold = Math.max(0, Math.floor(TD_BALANCE.economy.clearBonusBase - waveElapsed * TD_BALANCE.economy.clearBonusDecay));
                 if (bonusGold > 0) {
                     gold += bonusGold;
                     floatingTexts.push({ x: VW/2, y: 100, text: `+${bonusGold} бонус!`, life: 1.5, vy: -30 });
@@ -1081,9 +990,10 @@
         function castLightning() {
             if (paused || gameOver || victory) return;
             if (lightningCD>0) return;
-            if (mana<300) { playError(); showToast('Нужно 300 маны'); return; }
-            mana-=300; lightningCD=15; playLightning();
-            const dmg = Math.floor(200 * (1 + waveNum * 0.08));
+            const sp = TD_BALANCE.spells.lightning;
+            if (mana<sp.mana) { playError(); showToast('Нужно ' + sp.mana + ' маны'); return; }
+            mana-=sp.mana; lightningCD=sp.cd; playLightning();
+            const dmg = Math.floor(sp.dmg * (1 + waveNum * TD_BALANCE.spellDmgGrowth));
             // Гнев небес: залп ветвящихся молний + вспышка
             for (let i=0; i<16; i++) { const sx=Math.random()*VW, sy=100+Math.random()*(VH-200);
                 effects.push({type:'lightningStrike', x:sx, y:sy, timer:0.45, maxTimer:0.45, seed:Math.random()*7});
@@ -1103,16 +1013,17 @@
         function castFrost() {
             if (paused || gameOver || victory) return;
             if (frostCD>0) return;
-            if (mana<400) { playError(); showToast('Нужно 400 маны'); return; }
-            mana-=400; frostCD=18; playFrost();
-            const dmg = Math.floor(60 * (1 + waveNum * 0.08));
+            const sp = TD_BALANCE.spells.frost;
+            if (mana<sp.mana) { playError(); showToast('Нужно ' + sp.mana + ' маны'); return; }
+            mana-=sp.mana; frostCD=sp.cd; playFrost();
+            const dmg = Math.floor(sp.dmg * (1 + waveNum * TD_BALANCE.spellDmgGrowth));
             effects.push({type:'frostSpread', x:VW/2, y:VH/2, maxRadius:1150, timer:1.1, maxTimer:1.1});
             effects.push({type:'spellTint', color:'150,210,255', timer:0.7, maxTimer:0.7});
             // осколки льда с неба + морозные пятна
             for (let i=0; i<14; i++) effects.push({type:'iceShard', x:Math.random()*VW, y:-40-Math.random()*200, vx:60+Math.random()*80, vy:520+Math.random()*160, rot:Math.random()*2-1, timer:1.4, maxTimer:1.4});
             effects.push({type:'frostEdge', timer:2.2, maxTimer:2.2});
             for (let i=0; i<10; i++) effects.push({type:'frostPatch', x:Math.random()*VW, y:Math.random()*VH, r:50+Math.random()*70, timer:4, maxTimer:4});
-            enemies.forEach(e=>{ if(e.alive && !e.invisible) { e.applySlow(0.05, 6); e.applyFreeze(2); e.takeDamage(dmg, 'ice');
+            enemies.forEach(e=>{ if(e.alive && !e.invisible) { e.applySlow(sp.slowFactor, sp.slowDur); e.applyFreeze(sp.freeze); e.takeDamage(dmg, 'ice');
                 effects.push({type:'frostRing', x:e.x, y:e.y, maxRadius:60, timer:0.6, maxTimer:0.6});
                 for (let i=0;i<8;i++) { const a=Math.random()*Math.PI*2, s=40+Math.random()*60; particles.push({x:e.x, y:e.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0.9, color:'#aaddff'}); }
             } });
@@ -1121,15 +1032,16 @@
         function castFireRain() {
             if (paused || gameOver || victory) return;
             if (fireRainCD>0) return;
-            if (mana<500) { playError(); showToast('Нужно 500 маны'); return; }
-            mana-=500; fireRainCD=22; playFire();
-            const dmg = Math.floor(150 * (1 + waveNum * 0.08));
+            const sp = TD_BALANCE.spells.fireRain;
+            if (mana<sp.mana) { playError(); showToast('Нужно ' + sp.mana + ' маны'); return; }
+            mana-=sp.mana; fireRainCD=sp.cd; playFire();
+            const dmg = Math.floor(sp.dmg * (1 + waveNum * TD_BALANCE.spellDmgGrowth));
             // Метеоритный дождь: больше снарядов + выжженная земля
             for (let i=0; i<30; i++) effects.push({type:'fireballFall', x:Math.random()*VW, y:0, targetY:100+Math.random()*(VH-200), timer:0.8+i*0.02, maxTimer:0.8+i*0.02, w:i});
             effects.push({type:'spellTint', color:'255,100,50', timer:0.8, maxTimer:0.8});
             for (let i=0; i<12; i++) effects.push({type:'scorch', x:Math.random()*VW, y:Math.random()*VH, r:34+Math.random()*46, timer:5, maxTimer:5});
             effects.push({type:'spellTint', color:'255,100,50', timer:0.7, maxTimer:0.7});
-            enemies.forEach(e=>{ if(e.alive && !e.invisible) { e.takeDamage(dmg, 'fire'); e.applyDot(Math.round(20 * (1 + waveNum * 0.06)), 3);
+            enemies.forEach(e=>{ if(e.alive && !e.invisible) { e.takeDamage(dmg, 'fire'); e.applyDot(Math.round(sp.dot * (1 + waveNum * sp.dotGrowth)), sp.dotDur);
                 effects.push({type:'fireExplosion', x:e.x, y:e.y, timer:0.5, maxTimer:0.5});
                 for (let i=0;i<10;i++) { const a=Math.random()*Math.PI*2, s=50+Math.random()*80; particles.push({x:e.x, y:e.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:0.6+Math.random()*0.4, color:'#ff4400'}); }
             } });
@@ -1156,9 +1068,16 @@
             el.disabled = cd > 0 || mana < cost;
             if (el._last !== html) { el.innerHTML = html; el._last = html; }
         }
-        initSpellBtn('lightning-btn', 'Гнев небес — 200 урона всем врагам (+8% за волну). 300 маны, КД 15с');
-        initSpellBtn('frost-btn', 'Ледяной шторм — 60 урона, заморозка 2с, замедление 95% на 6с. 400 маны, КД 18с');
-        initSpellBtn('fire-rain-btn', 'Огненный дождь — 150 урона и горение, усиливается с волной. 500 маны, КД 22с');
+        // стоимости на кнопках и в aria — из конфига (в разметке значения по умолчанию)
+        [['lightning-btn', 'lightning'], ['frost-btn', 'frost'], ['fire-rain-btn', 'fireRain']].forEach(p => {
+            const el = document.getElementById(p[0]), cost = TD_BALANCE.spells[p[1]].mana;
+            el.innerHTML = el.innerHTML.replace(/\(\d+</, '(' + cost + '<');
+            el.setAttribute('aria-label', (el.getAttribute('aria-label') || '').replace(/\d+ маны/, cost + ' маны'));
+        });
+        const spL = TD_BALANCE.spells.lightning, spF = TD_BALANCE.spells.frost, spR = TD_BALANCE.spells.fireRain;
+        initSpellBtn('lightning-btn', 'Гнев небес — ' + spL.dmg + ' урона всем врагам (+' + Math.round(TD_BALANCE.spellDmgGrowth*100) + '% за волну). ' + spL.mana + ' маны, КД ' + spL.cd + 'с');
+        initSpellBtn('frost-btn', 'Ледяной шторм — ' + spF.dmg + ' урона, заморозка ' + spF.freeze + 'с, замедление ' + Math.round((1-spF.slowFactor)*100) + '% на ' + spF.slowDur + 'с. ' + spF.mana + ' маны, КД ' + spF.cd + 'с');
+        initSpellBtn('fire-rain-btn', 'Огненный дождь — ' + spR.dmg + ' урона и горение, усиливается с волной. ' + spR.mana + ' маны, КД ' + spR.cd + 'с');
 
         // Всплывающий тултип способностей
         const spellTip = document.getElementById('spell-tip');
