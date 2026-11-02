@@ -139,4 +139,4 @@
 - `371da3b` баланс: спецы башен 4 ур. в конфиг — chain/multishot/freeze/epidemic/targets
 - `4fff57b` карта: путь/декор/факелы/туман → js/map.js (TD_MAP)
 - `34bdbf2` конфиг: техручки и хоткеи → js/config.js (TD_CONFIG), скорости массивом, ЙЦУКЕН
-- `6d226f6` звук: движок + пресеты → js/audio.js (TD_SOUND/TDAudio), game.js — тонкие обёртки
+- `8426fa6` звук: движок + пресеты → js/audio.js (TD_SOUND/TDAudio), game.js — тонкие обёртки
