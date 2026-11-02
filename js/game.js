@@ -261,48 +261,39 @@
 
         function clearSpawnQueue() { spawnQueue = []; spawnClock = 0; }
 
-        // ---------- PATH ----------
-        const rawPath = [
-            [0,9],[1,9],[2,9],[3,9],[4,9],[5,9],[6,9],[7,9],[8,9],[9,9],[10,9],[11,9],[12,9],[13,9],
-            [13,8],[13,7],[13,6],[13,5],[13,4],[13,3],[13,2],[13,1],[14,1],[15,1],[16,1],[17,1],[18,1],[19,1],[20,1],[21,1],
-            [21,2],[21,3],[21,4],[21,5],[21,6],[21,7],[21,8],[21,9],[21,10],[21,11],[21,12],[21,13],
-            [20,13],[19,13],[18,13],[17,13],[16,13],[15,13],[14,13],[13,13],[12,13],[11,13],[10,13],[9,13],[8,13],[7,13],
-            [7,12],[7,11],[7,10],[7,9],[7,8],[7,7],[7,6],[7,5],[7,4],[7,3],[8,3],[9,3],[10,3],[11,3],[12,3],[13,3],[14,3],[15,3],[16,3],[17,3],[18,3],[19,3],[20,3],
-            [20,4],[20,5],[20,6],[20,7],[20,8],[20,9],[20,10],[20,11],[20,12],[21,12],[22,12],[23,12],[24,12],[25,12],[26,12],[27,12],[28,12],[29,12],
-            [29,13],[30,13],[31,13]
-        ];
+        // ---------- PATH (карта — в js/map.js, TD_MAP.path) ----------
+        const rawPath = TD_MAP.path;
         const waypoints = rawPath.map(([x,y]) => ({x,y}));
         const pathPoints = waypoints.map(p => ({ x: p.x * CELL + CELL/2, y: p.y * CELL + CELL/2 }));
         const pathSet = new Set(waypoints.map(p => `${p.x},${p.y}`));
 
         const decorations = [];
         for (let i=0; i<COLS; i++) for (let j=0; j<ROWS; j++) {
-            if (pathSet.has(`${i},${j}`) || Math.random() >= 0.18) continue;
+            if (pathSet.has(`${i},${j}`) || Math.random() >= TD_MAP.decor.density) continue;
             const roll = Math.random();
-            // мёртвый лес: сухостой, колючий кустарник, камни, могилы, обелиски, кости
-            const type = roll < 0.30 ? 'tree' : roll < 0.48 ? 'bush' : roll < 0.68 ? 'rock' : roll < 0.82 ? 'grave' : roll < 0.92 ? 'spike' : 'skull';
+            const type = TD_MAP.decor.kinds.find(k => roll < k[0])[1];
             decorations.push({ col:i, row:j, type,
                 ox: (Math.random()-0.5)*14, oy: (Math.random()-0.5)*10,
                 s: 0.75 + Math.random()*0.5, hue: Math.random() });
         }
         const torches = [];
         // Факелы на обочине дороги: столбики рядом с путём (клетки дороги всё равно
-        // незанятые для стройки — башням факелы не мешают)
-        for (let i=6; i<pathPoints.length-2; i+=7) {
+        // незанятые для стройки — башням факелы не мешают). Шаг — из TD_MAP.torches
+        for (let i=6; i<pathPoints.length-2; i+=TD_MAP.torches.everySeg) {
             const p = pathPoints[i], n = pathPoints[i+1];
             const dx = n.x - p.x, dy = n.y - p.y;
             const len = Math.hypot(dx, dy) || 1;
-            const side = (Math.floor(i/7) % 2 === 0) ? 1 : -1;
+            const side = (Math.floor(i/TD_MAP.torches.everySeg) % 2 === 0) ? 1 : -1;
             torches.push({
-                x: p.x + (-dy/len) * CELL*0.3 * side,
-                y: p.y + (dx/len) * CELL*0.3 * side,
+                x: p.x + (-dy/len) * CELL * TD_MAP.torches.sideOffset * side,
+                y: p.y + (dx/len) * CELL * TD_MAP.torches.sideOffset * side,
                 offset: Math.random()*Math.PI*2,
-                h: 26 + Math.random()*8
+                h: TD_MAP.torches.hMin + Math.random()*TD_MAP.torches.hVar
             });
         }
         // банки тумана для модификатора "Туман"
         const fogBanks = [];
-        for (let i=0; i<8; i++) fogBanks.push({ x: Math.random()*VW, y: Math.random()*VH, r: 130+Math.random()*170, vx: (Math.random()-0.5)*22, vy: (Math.random()-0.5)*14, ph: Math.random()*Math.PI*2 });
+        for (let i=0; i<TD_MAP.fog.count; i++) fogBanks.push({ x: Math.random()*VW, y: Math.random()*VH, r: TD_MAP.fog.rMin+Math.random()*TD_MAP.fog.rVar, vx: (Math.random()-0.5)*TD_MAP.fog.vxMax, vy: (Math.random()-0.5)*TD_MAP.fog.vyMax, ph: Math.random()*Math.PI*2 });
 
         // ---------- TOWERS ----------
         const towerDefs = TD_BALANCE.towers;
