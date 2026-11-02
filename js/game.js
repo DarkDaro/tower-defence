@@ -602,7 +602,7 @@
             { name:'Дрейк', emoji:'🐉', hp:260, speed:55, armor:12, resist:{fire:0.4}, reward:42, color:'#BF360C', flying:true },
             { name:'Рыцарь', emoji:'👑', hp:340, speed:45, armor:20, resist:{physical:0.25}, shield:true, reward:55, color:'#FFD700' },
             { name:'Призрак', emoji:'👻', hp:70, speed:90, armor:0, resist:{}, reward:20, color:'#88ccff', canInvisible:true },
-            { name:'Берсерк', emoji:'🪓', hp:200, speed:85, armor:5, resist:{}, reward:28, color:'#cc3333', canInvuln:true, berserk:true },
+            { name:'Берсерк', emoji:'🪓', hp:200, speed:85, armor:5, resist:{}, reward:28, color:'#cc3333', canInvuln:true, berserk:true, size:0.85 },
             { name:'Страж', emoji:'🛡️', hp:250, speed:50, armor:15, resist:{}, reward:30, color:'#4488ff', dmgShield:true },
             { name:'Шаман ветра', emoji:'🌀', hp:120, speed:70, armor:0, resist:{}, reward:25, color:'#66ddaa', auraSpeed:1.3, auraRadius:100 },
             { name:'Горгулья', emoji:'🗿', hp:300, speed:45, armor:25, resist:{physical:0.2}, reward:35, color:'#888888', flying:true },
@@ -1772,7 +1772,9 @@
                 ctx.strokeRect(hoverCol*CELL+2, hoverRow*CELL+2, CELL-4, CELL-4);
             }
             const hpLabels = []; // цифры HP рисуем после всех врагов — со сдвигом скученных меток вверх
-            enemies.forEach(e => {
+            // Глубина: нижние по дорожке рисуются поверх верхних, летуны — поверх всех.
+            // Копия, НЕ in-place: порядок enemies определяет приоритет прицеливания башен.
+            enemies.slice().sort((a,b) => (a.y + (a.flying ? 10000 : 0)) - (b.y + (b.flying ? 10000 : 0))).forEach(e => {
                 if (!e.emoji) return;
                 ctx.save();
                 if (e.invisible) ctx.globalAlpha = 0.25;
@@ -1815,10 +1817,14 @@
                         hpLabels.push({ x: ex, y: ey - e.size*14 - 8, txt: `${Math.ceil(e.hp)}/${e.maxHp}` });
                     }
                 }
+                // Кольца статусов (щит/неуязвимость/ярость) — полупрозрачные: в плотной колонне
+                // не должны закрывать соседних мобов (жалоба хозяина на «шарики и круги»)
+                ctx.globalAlpha *= 0.72;
                 if (e.shieldActive) { ctx.strokeStyle='#ffaa00'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); }
                 if (e.dmgShieldActive) { ctx.strokeStyle='#4488ff'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); }
                 if (e.invuln) { ctx.strokeStyle='#ffdd00'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(ex, ey, e.size*14, 0, 2*Math.PI); ctx.stroke(); }
                 if (e.berserk && e.hp < e.maxHp*0.5) { ctx.strokeStyle='red'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*15, 0, 2*Math.PI); ctx.stroke(); }
+                ctx.globalAlpha = e.invisible ? 0.25 : 1;
                 ctx.restore();
             });
             if (showHpNumbers && hpLabels.length) {
