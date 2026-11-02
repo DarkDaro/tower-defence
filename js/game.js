@@ -843,10 +843,16 @@
                         const oy = i===0 ? 0 : -6;
                         projectiles.push(new Projectile(sx+ox, sy+oy, tgt, this.type, bcfg));
                     });
-                    effects.push({type:'multishot', x:sx, y:sy, color:cfg.projColor, timer:0.3, maxTimer:0.3});
+                    effects.push({type:'multishot', x:sx, y:sy, color:cfg.projColor, timer:0.3, maxTimer:0.3,
+                        angs: targets.map(t => Math.atan2(t.y - sy, t.x - sx))});
                 } else { projectiles.push(new Projectile(sx, sy, primary, this.type, bcfg)); }
                 playShootThrottled(this.type);
-                effects.push({type:'muzzle', x:sx, y:sy, color:cfg.projColor, timer:0.15, big:(this.type==='cannon'||this.type==='siege')});
+                // Вспышка выстрела — по-разному для пород башен, БЕЗ старой звезды в центре:
+                // пороховые — сноп пламени из ствола, лучник — спуск тетивы, чародеи — ореол в цвет снаряда
+                const powder = (this.type === 'cannon' || this.type === 'siege');
+                const kind = powder ? 'powder' : (this.type === 'archer' ? 'bow' : 'cast');
+                const ang = Math.atan2(primary.y - sy, primary.x - sx);
+                effects.push({type:'muzzle', x:sx, y:sy, color:cfg.projColor, timer:0.15, big:powder, ang, kind});
             }
         }
 
@@ -1970,19 +1976,41 @@
             });
             effects.forEach(ef => {
                 if (ef.type==='muzzle') {
-                    // вспышка выстрела: 4-лучевая звезда + кольцо отдачи (у Пушки/Осадной — крупнее)
-                    const a = ef.timer/0.15; const r = (ef.big ? 13 : 8) * (0.55 + 0.45*a);
-                    ctx.save(); ctx.translate(ef.x, ef.y);
-                    ctx.globalAlpha = a * 0.9;
-                    ctx.fillStyle = ef.color; ctx.shadowColor = ef.color; ctx.shadowBlur = 9;
-                    for (let i = 0; i < 4; i++) {
-                        ctx.rotate(Math.PI/2);
-                        ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r*0.25, 1.6); ctx.lineTo(r*0.25, -1.6); ctx.closePath(); ctx.fill();
+                    // Вспышка выстрела — три породы вместо старой звезды:
+                    // порох (Пушка/Осадная) — сноп пламени из ствола + дуга дыма;
+                    // лучник — спуск тетивы со штрихами к цели; чародеи — мягкий ореол в цвет снаряда
+                    const a = ef.timer/0.15;
+                    ctx.save(); ctx.translate(ef.x, ef.y); ctx.rotate(ef.ang || 0);
+                    if (ef.kind === 'powder') {
+                        const L = (ef.big ? 24 : 17) * (0.6 + 0.4*a);
+                        ctx.globalAlpha = a * 0.95;
+                        const fg = ctx.createLinearGradient(6, 0, L + 4, 0);
+                        fg.addColorStop(0, 'rgba(255,224,130,0.95)');
+                        fg.addColorStop(0.5, ef.color);
+                        fg.addColorStop(1, 'rgba(120,40,10,0)');
+                        ctx.fillStyle = fg;
+                        ctx.beginPath();
+                        ctx.moveTo(6, -2.5); ctx.lineTo(L, -5.5); ctx.lineTo(L + 4, 0);
+                        ctx.lineTo(L, 5.5); ctx.lineTo(6, 2.5); ctx.closePath(); ctx.fill();
+                        ctx.globalAlpha = a * 0.45;
+                        ctx.strokeStyle = 'rgba(122,108,92,0.9)'; ctx.lineWidth = 1.6;
+                        ctx.beginPath(); ctx.arc(1, 0, 9 + (1-a)*6, -1.15, 1.15); ctx.stroke();
+                    } else if (ef.kind === 'bow') {
+                        ctx.globalAlpha = a * 0.85;
+                        ctx.strokeStyle = '#e8d9a0'; ctx.lineWidth = 1.4;
+                        ctx.beginPath(); ctx.arc(-3, 0, 8, -1.2, 1.2); ctx.stroke();
+                        ctx.globalAlpha = a * 0.6;
+                        ctx.strokeStyle = ef.color; ctx.lineWidth = 1.2;
+                        for (let i = -1; i <= 1; i++) {
+                            ctx.beginPath(); ctx.moveTo(7, i*2.4); ctx.lineTo(15 + (i===0?4:0), i*2.7); ctx.stroke();
+                        }
+                    } else {
+                        ctx.globalAlpha = a * 0.75;
+                        const gg = ctx.createRadialGradient(0, 0, 1, 0, 0, 12);
+                        gg.addColorStop(0, ef.color); gg.addColorStop(1, 'rgba(0,0,0,0)');
+                        ctx.fillStyle = gg;
+                        ctx.beginPath(); ctx.arc(0, 0, 12, 0, 2*Math.PI); ctx.fill();
                     }
-                    ctx.shadowBlur = 0;
-                    ctx.globalAlpha = a * 0.45;
-                    ctx.strokeStyle = ef.color; ctx.lineWidth = 1.6;
-                    ctx.beginPath(); ctx.arc(0, 0, r * 1.5, 0, 2*Math.PI); ctx.stroke();
                     ctx.restore();
                 }
                 else if (ef.type==='explosion') {
@@ -2015,7 +2043,24 @@
                     ctx.restore();
                 }
                 else if (ef.type==='freeze') { ctx.strokeStyle='#88ccff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(ef.x, ef.y, 22, 0, 2*Math.PI); ctx.stroke(); }
-                else if (ef.type==='multishot') { const a = ef.timer/ef.maxTimer; ctx.strokeStyle=`rgba(255,200,0,${a})`; ctx.lineWidth=2; for (let i=-1;i<=1;i++) { ctx.beginPath(); ctx.moveTo(ef.x, ef.y); ctx.lineTo(ef.x+i*25, ef.y-35); ctx.stroke(); } }
+                else if (ef.type==='multishot') {
+                    // Мультишот лучника (4 ур.): три стрелы-росчерка веером по реальным направлениям выстрела
+                    const a = ef.timer/ef.maxTimer;
+                    const angs = ef.angs || [0, -0.35, 0.35];
+                    for (let i = 0; i < angs.length; i++) {
+                        ctx.save(); ctx.translate(ef.x, ef.y); ctx.rotate(angs[i]);
+                        const off = 12 + (1-a) * 16; // росчерк уносится вперёд, за снарядом
+                        ctx.globalAlpha = a * 0.9;
+                        ctx.strokeStyle = '#caa64c'; ctx.lineWidth = 2;
+                        ctx.beginPath(); ctx.moveTo(off, 0); ctx.lineTo(off + 15, 0); ctx.stroke();
+                        ctx.fillStyle = '#e8d9a0';
+                        ctx.beginPath(); ctx.moveTo(off + 20, 0); ctx.lineTo(off + 14, -2.4); ctx.lineTo(off + 14, 2.4); ctx.closePath(); ctx.fill();
+                        ctx.globalAlpha = a * 0.5;
+                        ctx.strokeStyle = 'rgba(255,220,140,0.8)'; ctx.lineWidth = 1;
+                        ctx.beginPath(); ctx.moveTo(off - 10, 0); ctx.lineTo(off - 1, 0); ctx.stroke();
+                        ctx.restore();
+                    }
+                }
                 else if (ef.type==='lightningBolt') { const a = ef.timer/ef.maxTimer; ctx.strokeStyle=`rgba(255,255,100,${a})`; ctx.lineWidth=3; ctx.shadowColor='#ffaa00'; ctx.shadowBlur=15; ctx.beginPath(); ctx.moveTo(ef.x, 0); let cx=ef.x; for (let y=0;y<ef.y;y+=20) { cx+=(Math.random()-0.5)*30; ctx.lineTo(cx, y); } ctx.lineTo(ef.x, ef.y); ctx.stroke(); ctx.shadowBlur=0; }
                 else if (ef.type==='frostRing') { const a = ef.timer/ef.maxTimer; const r = ef.maxRadius*(1-a); ctx.strokeStyle=`rgba(150,200,255,${a*0.7})`; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(ef.x, ef.y, r, 0, 2*Math.PI); ctx.stroke(); ctx.strokeStyle=`rgba(200,230,255,${a*0.3})`; ctx.lineWidth=8; ctx.beginPath(); ctx.arc(ef.x, ef.y, r, 0, 2*Math.PI); ctx.stroke(); }
                 else if (ef.type==='fireExplosion') { const a = ef.timer/ef.maxTimer; const r = 30*(1-a+0.3); ctx.fillStyle=`rgba(255,${100+Math.random()*100},0,${a*0.6})`; ctx.beginPath(); ctx.arc(ef.x, ef.y, r, 0, 2*Math.PI); ctx.fill(); ctx.strokeStyle=`rgba(255,200,0,${a})`; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ef.x, ef.y, r, 0, 2*Math.PI); ctx.stroke(); }
