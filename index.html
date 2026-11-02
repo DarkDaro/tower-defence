@@ -58,7 +58,9 @@
         </div>
     </div>
     <div class="canvas-container">
-        <canvas id="game-canvas" width="1792" height="1008">Поле Орды: ваш браузер не поддерживает canvas.</canvas>
+        <!-- canvas-clip — окно панорамы на телефонах (зум/панорама двигают канву
+             внутри клипа); мультиборд вне клипа: в портрет-потоке идёт под полем -->
+        <div class="canvas-clip"><canvas id="game-canvas" width="1792" height="1008">Поле Орды: ваш браузер не поддерживает canvas.</canvas></div>
         <div id="multiboard">
             <h3>Убито врагов</h3>
             <div id="kill-list"></div>

@@ -13,12 +13,16 @@ window.TD_CONFIG = {
     // dprCap — предел плотности пикселей; bufferCap — предел физического буфера
     // (ширина×высота×q, чтобы 4K-экран не съел память); minScale/windowMargin —
     // как канва вписывается в окно; portraitPx — окей «поверни телефон».
+    // Мобильный вид (тач): coverRatio — когда поле растягивать по ширине окна
+    // (cover) вместо честного вписывания — если кроп по высоте не больше этой
+    // доли; zoomMax — предел щипка; dprCapTouch — кап DPR на телефонах (запас
+    // скорости отрисовки: разница с 3 на глаз почти нулевая, кадры — заметно).
     view: {
         VW: 1792, VH: 1008,
         cell: 56, cols: 32, rows: 18,
-        dprCap: 3, bufferCap: 4200,
+        dprCap: 3, dprCapTouch: 2, bufferCap: 4200,
         minScale: 0.12, windowMargin: 24,
-        portraitPx: 700
+        portraitPx: 700, coverRatio: 1.45, zoomMax: 3
     },
 
     // ---------- СПРАЙТЫ ----------

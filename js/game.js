@@ -47,20 +47,142 @@
         const COLS = CFG.view.cols;
         const ROWS = CFG.view.rows;
 
+        // ---------- ВИД: вписывание поля, зум и панорама ----------
+        // Три режима (выбираются в resize()):
+        //  десктоп    — как всегда: канва «contain» вписывается в окно, без зума;
+        //  иммерсивный — тач-устройство (pointer: coarse): враппер на весь экран,
+        //               поле по ширине окна (cover, если кроп по высоте умеренный),
+        //               щипок растит поле до zoomMax, палец двигает панораму;
+        //  портрет-поток — телефон в портрете ≤700px: прежняя колонка
+        //               панель/поле/панель, зум и панорама внутри контейнера поля.
+        // Панорама двигает канву transform'ом — математика клика (getBoundingClientRect)
+        // учитывает её сама, координаты клетки считаются верно при любом зуме.
+        // Окно панорамы — .canvas-clip (обёртка вокруг канвы): мультиборд лежит
+        // в том же контейнере ПОСЛЕ клипа и в портрет-потоке идёт под полем,
+        // а не поверх него.
+        const canvasBox = canvas.parentElement; // .canvas-clip — окно панорамы
+        const isCoarse = window.matchMedia('(pointer: coarse)').matches;
+        const portraitFlowQuery = window.matchMedia('(orientation: portrait) and (max-width: 700px)');
+        let zoom = 1, panX = 0, panY = 0, baseScale = 0.2, panZoom = false;
+        const activePointers = new Map();
+        let dragBase = null, pinchBase = null, viewMoved = false, sharpTimer = null, suppressClickUntil = 0;
+
+        function clampPan() {
+            const cw = canvasBox.clientWidth, ch = canvasBox.clientHeight;
+            const w = parseFloat(canvas.style.width) || 0, h = parseFloat(canvas.style.height) || 0;
+            panX = (w <= cw) ? (cw - w) / 2 : Math.min(0, Math.max(cw - w, panX));
+            panY = (h <= ch) ? (ch - h) / 2 : Math.min(0, Math.max(ch - h, panY));
+            canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+        }
+        function layoutCanvas() {
+            const eff = baseScale * zoom;
+            canvas.style.width = `${Math.round(VW * eff)}px`;
+            canvas.style.height = `${Math.round(VH * eff)}px`;
+            if (panZoom) clampPan(); // на десктопе канву центрует flex
+        }
         function resize() {
-            // почти во всё окно: панели перекрывают поле, а не сжимают его.
-            // Пол 0.12 вместо 0.25: в портрете телефона (393px) пол 0.25 делал канву
-            // (448px) шире окна — она резалась за краями; теперь честно вписываемся.
-            const scale = Math.max(CFG.view.minScale, Math.min((window.innerWidth - CFG.view.windowMargin) / VW, (window.innerHeight - CFG.view.windowMargin) / VH));
-            canvas.style.width = `${Math.round(VW * scale)}px`;
-            canvas.style.height = `${Math.round(VH * scale)}px`;
-            // физический буфер под реальный размер на экране — чёткость на любом окне
-            const q = Math.min(DPR, CFG.view.bufferCap / (VW * scale));
-            canvas.width = Math.max(1, Math.round(VW * scale * q));
-            canvas.height = Math.max(1, Math.round(VH * scale * q));
+            const portraitFlow = portraitFlowQuery.matches;
+            panZoom = isCoarse; // десктоп не трогаем вообще
+            document.body.classList.toggle('immersive', panZoom && !portraitFlow);
+            canvasBox.classList.toggle('panzoom', panZoom);
+            if (!panZoom) {
+                // почти во всё окно: панели перекрывают поле, а не сжимают его.
+                // Пол 0.12 вместо 0.25: в портрете телефона (393px) пол 0.25 делал канву
+                // (448px) шире окна — она резалась за краями; теперь честно вписываемся.
+                baseScale = Math.max(CFG.view.minScale, Math.min((window.innerWidth - CFG.view.windowMargin) / VW, (window.innerHeight - CFG.view.windowMargin) / VH));
+            } else if (portraitFlow) {
+                // портрет-поток: колонка панель/поле/мультиборд/панель — клип фиксированной
+                // высоты (как вписанное поле), зум и панорама живут внутри клипа
+                baseScale = Math.max(CFG.view.minScale, Math.min((window.innerWidth - CFG.view.windowMargin) / VW, (window.innerHeight - CFG.view.windowMargin) / VH));
+                canvasBox.style.width = '100%';
+                canvasBox.style.height = `${Math.round(VH * baseScale)}px`;
+            } else {
+                // иммерсивный: клип растянут на весь контейнер — меряем его.
+                // cover по ширине, если кроп по высоте ≤ coverRatio — поле крупнее
+                // и без пустых полей по бокам; иначе честное вписывание.
+                const cw = canvasBox.clientWidth, ch = canvasBox.clientHeight;
+                const fitW = cw / VW, fitH = ch / VH;
+                const contain = Math.max(CFG.view.minScale, Math.min(fitW, fitH));
+                const cover = Math.max(fitW, fitH);
+                baseScale = (cover <= contain * CFG.view.coverRatio) ? cover : contain;
+            }
+            layoutCanvas();
+            // физический буфер под реальный размер на экране — чёткость на любом окне;
+            // на тач DPR капим жёстче (dprCapTouch): экономим кадры при зуме
+            const eff = baseScale * zoom;
+            const dpr = panZoom ? Math.min(DPR, CFG.view.dprCapTouch) : DPR;
+            const q = Math.min(dpr, CFG.view.bufferCap / (VW * eff));
+            canvas.width = Math.max(1, Math.round(VW * eff * q));
+            canvas.height = Math.max(1, Math.round(VH * eff * q));
             ctx.setTransform(canvas.width / VW, 0, 0, canvas.height / VH, 0, 0);
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
+        }
+        // щипок/панорама: pointer-события, два пальца — зум вокруг середины,
+        // один палец — панорама (работает, только когда канва больше окна)
+        function gestureSharp() {
+            if (sharpTimer) clearTimeout(sharpTimer);
+            sharpTimer = setTimeout(() => { sharpTimer = null; resize(); }, 150); // резкий буфер после жеста
+        }
+        function onPointerDown(e) {
+            if (!panZoom) return;
+            if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (err) {} }
+            activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (activePointers.size === 1) {
+                dragBase = { x: e.clientX, y: e.clientY, panX, panY };
+                viewMoved = false;
+            } else if (activePointers.size === 2) {
+                const pts = [...activePointers.values()];
+                const cr = canvas.getBoundingClientRect(); // origin канвы без учёта текущего pan
+                const ox = cr.left - panX, oy = cr.top - panY;
+                pinchBase = {
+                    dist: Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)),
+                    zoom0: zoom, ox, oy,
+                    midV: { x: (pts[0].x + pts[1].x) / 2 - ox, y: (pts[0].y + pts[1].y) / 2 - oy }
+                };
+            }
+        }
+        function onPointerMove(e) {
+            if (!panZoom || !activePointers.has(e.pointerId)) return;
+            activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (activePointers.size >= 2 && pinchBase) {
+                const pts = [...activePointers.values()];
+                const dist = Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y));
+                const ratio = dist / pinchBase.dist;
+                zoom = Math.min(CFG.view.zoomMax, Math.max(1, pinchBase.zoom0 * ratio));
+                // точка под серединой пальцев держится на месте: pan = mid − o − v·(z1/z0)
+                const midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+                const k = zoom / pinchBase.zoom0;
+                panX = midX - pinchBase.ox - pinchBase.midV.x * k;
+                panY = midY - pinchBase.oy - pinchBase.midV.y * k;
+                layoutCanvas();
+                viewMoved = true;
+            } else if (activePointers.size === 1 && dragBase) {
+                const dx = e.clientX - dragBase.x, dy = e.clientY - dragBase.y;
+                if (Math.abs(dx) + Math.abs(dy) > 8) viewMoved = true;
+                panX = dragBase.panX + dx;
+                panY = dragBase.panY + dy;
+                layoutCanvas(); // clampPan отцентрует, если канва меньше окна — без дрожи
+            }
+        }
+        function onPointerUp(e) {
+            if (!panZoom || !activePointers.has(e.pointerId)) return;
+            activePointers.delete(e.pointerId);
+            if (activePointers.size === 1) {
+                const rest = [...activePointers.values()][0];
+                dragBase = { x: rest.x, y: rest.y, panX, panY };
+                pinchBase = null;
+            } else if (activePointers.size === 0) {
+                dragBase = null; pinchBase = null;
+                if (viewMoved) suppressClickUntil = performance.now() + 350; // жест — не тап: клик по клетке гасим
+                gestureSharp();
+            }
+        }
+        if (isCoarse) {
+            canvas.addEventListener('pointerdown', onPointerDown);
+            canvas.addEventListener('pointermove', onPointerMove);
+            canvas.addEventListener('pointerup', onPointerUp);
+            canvas.addEventListener('pointercancel', onPointerUp);
         }
         window.addEventListener('resize', resize);
         window.addEventListener('orientationchange', resize); // поворот телефона: resize срабатывает не всегда
@@ -1249,6 +1371,7 @@
 
         canvas.addEventListener('click', (e) => {
             if (paused || gameOver || victory) return;
+            if (performance.now() < suppressClickUntil) return; // это был жест панорамы/зума, не тап
             const rect = canvas.getBoundingClientRect();
             const scaleX = VW / rect.width, scaleY = VH / rect.height;
             const mx = (e.clientX - rect.left) * scaleX, my = (e.clientY - rect.top) * scaleY;

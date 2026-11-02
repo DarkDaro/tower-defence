@@ -3,6 +3,7 @@
            кнопки вырастали и наезжали друг на друга. Запрещаем. */
         html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
                -webkit-tap-highlight-color: transparent; } /* без серых вспышек на тапах в андроиде */
+        html { overscroll-behavior: none; } /* без pull-to-refresh — палец занят панорамой поля */
         body {
             background: #0a0505;
             background-image: radial-gradient(ellipse at center, #1a0a0a 0%, #0a0505 100%);
@@ -575,6 +576,28 @@
 /* ================= МОБИЛЬНЫЕ УСТРОЙСТВА ================= */
 /* Тач: без зума по двойному тапу и без задержки клика */
 canvas, .btn, .tower-btn, #volume-slider { touch-action: manipulation; }
+
+/* --- Режим панорамы/зума (класс ставит game.js на тач-устройствах) ---
+   Окно просмотра — .canvas-clip (обёртка вокруг канвы): канва позиционируется
+   внутри абсолютно и двигается transform'ом (panX/panY), щипок меняет её размер.
+   Мультиборд — вне клипа: в портрет-потоке идёт под полем, а не поверх него. */
+.canvas-clip { position: relative; }
+.canvas-container.panzoom .canvas-clip { overflow: hidden; touch-action: none; }
+.canvas-container.panzoom .canvas-clip canvas {
+    position: absolute; left: 0; top: 0;
+    transform: translate(0, 0); will-change: transform; touch-action: none;
+}
+/* Иммерсивный режим (тач вне портрет-потока): враппер на весь экран, поле — по ширине.
+   Пульсирующее свечение рамки выключено: анимированная тень на весь экран
+   заставляет телефон перерисовывать всё окно каждый кадр. */
+body.immersive #game-wrapper {
+    width: 100vw; height: 100dvh; min-height: 100dvh;
+    border-width: 0; border-radius: 0; padding: 6px;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+    animation: none;
+}
+body.immersive .canvas-container { position: absolute; inset: 0; margin: 0; }
+body.immersive .canvas-container .canvas-clip { position: absolute; inset: 0; }
 /* На тач-устройствах hover-эффекты «залипают» после тапа — выключаем их там */
 @media (hover: none) {
     .btn:hover { transform: none; }
@@ -588,7 +611,8 @@ canvas, .btn, .tower-btn, #volume-slider { touch-action: manipulation; }
     #top-bar { flex-direction: column; align-items: center; padding: 3px 8px; gap: 3px; }
     #top-bar .buttons { justify-content: center; gap: 3px; }
     #top-bar .stat { padding: 1px 8px; font-size: 13px; gap: 4px; }
-    #top-bar .btn { padding: 3px 5px; font-size: 10.5px; border-radius: 5px; }
+    /* кнопки не мельчают ниже 30px по высоте: палец должен попадать */
+    #top-bar .btn { padding: 3px 6px; font-size: 10.5px; border-radius: 5px; min-height: 30px; }
     /* «Развернуть» — в правый угол строки статов: ряд кнопок не расширяем */
     #fs-btn { position: absolute; top: 3px; right: 8px; min-width: 40px; }
     /* слова-подписи прячем: остаются иконки + цена/состояние */
@@ -602,8 +626,8 @@ canvas, .btn, .tower-btn, #volume-slider { touch-action: manipulation; }
     #volume-slider { display: none; } /* громкость на мобиле — кнопкой Звук */
     #mana-bar-bg { width: 120px; }
     #bottom-bar { padding: 4px 10px; }
-    .tower-btn { min-width: 0; min-height: 32px; padding: 2px 3px; font-size: 9.5px; gap: 2px; }
-    .tower-btn .btn-sprite { width: 18px; height: 18px; }
+    .tower-btn { min-width: 0; min-height: 38px; padding: 4px 6px; font-size: 10px; gap: 2px; }
+    .tower-btn .btn-sprite { width: 20px; height: 20px; }
     .tower-btn .tname { display: none; } /* на мобиле: иконка + цена */
     #selected-info { font-size: 12px; }
     #multiboard { width: 150px; padding: 8px; font-size: 12px; top: 64px; max-height: max(140px, calc(66% - 64px)); }
