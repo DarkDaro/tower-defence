@@ -249,7 +249,8 @@
         try { showHpNumbers = localStorage.getItem('td_hp_numbers') === '1'; } catch(e) {}
         let lightningCD = 0, frostCD = 0, fireRainCD = 0;
         let hoverCol = -1, hoverRow = -1;
-        const killCount = Array(24).fill(0);
+        // длина по конфигу: добавишь врага/босса в balance.js — счётчик не сломается
+        const killCount = Array(TD_BALANCE.enemies.length + TD_BALANCE.bosses.length).fill(0);
         // Очередь спавна в игровом времени (вместо setTimeout): работает с паузой,
         // ускорением и рестартом без гонок таймеров
         let spawnQueue = [];
@@ -711,7 +712,7 @@
                     gold += this.reward;
                     stats.goldEarned += this.reward;
                     stats.enemiesKilled++;
-                    const idx = this.isBoss ? 16 + this.typeIndex : this.typeIndex;
+                    const idx = this.isBoss ? enemyBase.length + this.typeIndex : this.typeIndex;
                     if (idx >= 0 && idx < killCount.length) killCount[idx]++;
                     playExplosion();
                     floatingTexts.push({ x: this.x, y: this.y - 10, text: '+' + this.reward, life: 1.0, vy: -40 });
@@ -949,8 +950,9 @@
             spawnClock = 0;
             const mod = getWaveMod(waveNum + 1);
             if (mod) {
-                showToast(`${mod.icon} Волна ${waveNum + 1}: ${mod.name}`);
-                effects.push({type:'modBanner', text: mod.name.split(':')[0].toUpperCase(), sub: mod.name.split(':')[1] || '', timer:2.6, maxTimer:2.6});
+                showToast(`${mod.icon} Волна ${waveNum + 1}: ${mod.name} — ${mod.sub}`);
+                // name/sub — отдельные поля конфига, раньше баннер парсил строку по двоеточию
+                effects.push({type:'modBanner', text: mod.name.toUpperCase(), sub: mod.sub || '', timer:2.6, maxTimer:2.6});
             }
             document.getElementById('start-wave-btn').disabled = true;
             playWaveStart();
@@ -1138,13 +1140,15 @@
                 document.getElementById('mana-text').textContent = `${manaShown} / ${maxMana}`;
             }
             // Spell buttons: перерисовка только при изменении, КД фиксированной ширины
-            spellBtnUI('lightning-btn', lightningCD, 300);
-            spellBtnUI('frost-btn', frostCD, 400);
-            spellBtnUI('fire-rain-btn', fireRainCD, 500);
+            // цены из конфига: раньше тут стояли захардкоженные 300/400/500 и
+            // блокировка кнопки расходилась с ценой на кнопке при правке баланса
+            spellBtnUI('lightning-btn', lightningCD, spL.mana);
+            spellBtnUI('frost-btn', frostCD, spF.mana);
+            spellBtnUI('fire-rain-btn', fireRainCD, spR.mana);
             const kl = document.getElementById('kill-list');
             let html = '';
             enemyBase.forEach((t,i)=> html += `<div class="kill-row"><span><img class="kill-icon" src="${killIconUrls[i]}">${t.name}</span><span>${killCount[i]}</span></div>`);
-            bossTypes.forEach((t,i)=> html += `<div class="kill-row"><span><img class="kill-icon" src="${killIconUrls[16+i]}">${t.name}</span><span>${killCount[16+i]}</span></div>`);
+            bossTypes.forEach((t,i)=> html += `<div class="kill-row"><span><img class="kill-icon" src="${killIconUrls[enemyBase.length + i]}">${t.name}</span><span>${killCount[enemyBase.length + i]}</span></div>`);
             // Перерисовываем только при изменении, а не каждый кадр
             if (html !== updateUI.lastKillHtml) {
                 updateUI.lastKillHtml = html;
@@ -1316,7 +1320,7 @@
                 `<div class="stat-line"><span>Счёт</span><b>${score.toLocaleString('ru-RU')}</b></div>` +
                 `<div class="stat-line"><span>Волн пройдено</span><b>${stats.wavesCompleted} / ${waves.length}</b></div>` +
                 `<div class="stat-line"><span>Врагов убито</span><b>${stats.enemiesKilled.toLocaleString('ru-RU')}</b></div>` +
-                `<div class="stat-line"><span>Жизней сохранено</span><b>${Math.max(0,lives)} / 20</b></div>`;
+                `<div class="stat-line"><span>Жизней сохранено</span><b>${Math.max(0,lives)} / ${TD_BALANCE.start.lives}</b></div>`;
         }
         function speedBtnLabel() {
             return `<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 4l9 8-9 8z" fill="#c9c2b4"/><path d="M12 4l9 8-9 8z" fill="#c9c2b4"/></svg></span> x${gameSpeed}`;
