@@ -749,7 +749,10 @@
                 const d = towerDefs[this.type]; const l = this.level-1;
                 return { damage:d.damage[l], range:d.range[l], cooldown:d.cooldown[l], aoe:d.aoe?d.aoe[l]:0, slow:d.slow?d.slow[l]:0,
                     slowDur:d.slowDur||2.5, ignoreArmor:d.ignoreArmor||false, dotDmg:d.dotDmg?d.dotDmg[l]:0, dotDur:d.dotDur||3,
-                    chain:d.chain||0, chainRange:d.chainRange||80, damageType:d.damageType, projColor:d.projColor, projSpeed:d.projSpeed,
+                    chain:d.chain?d.chain[l]:0, chainRange:d.chainRange||80, multishot:d.multishot?d.multishot[l]:1,
+                    freezeChance:d.freezeChance?d.freezeChance[l]:0, freezeDur:d.freezeDur?d.freezeDur[l]:0,
+                    epidemic:d.epidemic?d.epidemic[l]:0, targets:d.targets||'any',
+                    damageType:d.damageType, projColor:d.projColor, projSpeed:d.projSpeed,
                     auraBuff:d.auraBuff?d.auraBuff[l]:0, auraRadius:d.auraRadius?d.auraRadius[l]:0,
                     level:this.level };
             }
@@ -760,7 +763,7 @@
                 if (this.type === 'buffer') return;
                 let best = Infinity;
                 const cx = (this.col+0.5)*CELL, cy = (this.row+0.5)*CELL;
-                const noFly = (this.type === 'cannon' || this.type === 'siege');
+                const noFly = this.cfg.targets === 'ground'; // «не бьёт летунов» — из конфига башни
                 for (let e of enemiesList) { if (!e.alive || e.invisible || (noFly && e.flying)) continue; const d = Math.hypot(cx - e.x, cy - e.y); if (d <= this.cfg.range && d < best) { best=d; this.target=e; } }
                 if (this.target && this.cdTimer <= 0) { this.attack(this.target); this.cdTimer = this.cfg.cooldown; }
             }
@@ -768,7 +771,7 @@
                 const cfg = this.cfg; const sx = (this.col+0.5)*CELL, sy = (this.row+0.5)*CELL;
                 const bcfg = Object.assign({}, cfg, { damage: cfg.damage * (this.buffMult || 1) });
                 if (this.type === 'lightning') {
-                    let targets = [primary]; let last = primary; let remaining = (this.level===4?5:3)-1;
+                    let targets = [primary]; let last = primary; let remaining = cfg.chain - 1;
                     let potential = enemies.filter(e => e.alive && e !== primary && !e.invisible);
                     while (remaining>0 && potential.length>0) {
                         potential.sort((a,b)=>Math.hypot(last.x-a.x,last.y-a.y)-Math.hypot(last.x-b.x,last.y-b.y));
@@ -776,11 +779,11 @@
                         if (!next) break; targets.push(next); potential = potential.filter(e => e!==next); last = next; remaining--;
                     }
                     targets.forEach(t => projectiles.push(new Projectile(sx, sy, t, this.type, bcfg, true)));
-                } else if (this.level===4 && this.type==='archer') {
-                    // Multishot: always 3 projectiles
+                } else if ((cfg.multishot||1) > 1) {
+                    // Мультивыстрел: число стрел — из конфига (archer: [1,1,1,3])
                     const inRange = enemies.filter(en => en.alive && en !== primary && !en.invisible && Math.hypot(sx - en.x, sy - en.y) <= cfg.range);
                     const targets = [primary];
-                    for (let i=0; i<2; i++) {
+                    for (let i=1; i<cfg.multishot; i++) {
                         if (inRange.length > 0) {
                             const idx = Math.floor(Math.random()*inRange.length);
                             targets.push(inRange[idx]);
@@ -808,7 +811,7 @@
         }
 
         class Projectile {
-            constructor(x,y,target,type,cfg,chain=false) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||2.5; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; this.noFly=(type==='cannon'||type==='siege'); }
+            constructor(x,y,target,type,cfg,chain=false) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||2.5; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
             update(dt) {
                 if (this.target && this.target.alive && !this.target.invisible) { this.tx = this.target.x; this.ty = this.target.y; }
                 if (!this.target || !this.target.alive || this.target.invisible) {
@@ -851,13 +854,13 @@
                     if (this.dotDmg>0) {
                         if (this.type === 'poison') playPoisonHit();
                         this.target.applyDot(this.dotDmg/ (this.dotDur/AB.dotTick), this.dotDur);
-                        if (this.type === 'poison' && this.level === 4) {
-                            enemies.forEach(e => { if (e.alive && !e.invisible && e !== this.target && Math.hypot(this.target.x - e.x, this.target.y - e.y) <= 70) e.applyDot(this.dotDmg / (this.dotDur/AB.dotTick), this.dotDur); });
+                        if (this.type === 'poison' && this.epidemic > 0) {
+                            enemies.forEach(e => { if (e.alive && !e.invisible && e !== this.target && Math.hypot(this.target.x - e.x, this.target.y - e.y) <= this.epidemic) e.applyDot(this.dotDmg / (this.dotDur/AB.dotTick), this.dotDur); });
                         }
                     }
                     effects.push({type:'spark', x:this.target.x, y:this.target.y, color:this.color, timer:0.3});
                 }
-                if (this.type==='ice' && this.level===4 && Math.random()<0.35) { this.target.applyFreeze(1.5); playFreeze(); effects.push({type:'freeze', x:this.target.x, y:this.target.y, timer:1.0}); }
+                if (this.freezeChance && Math.random() < this.freezeChance) { this.target.applyFreeze(this.freezeDur); playFreeze(); effects.push({type:'freeze', x:this.target.x, y:this.target.y, timer:1.0}); }
                 this.alive=false;
             }
         }
