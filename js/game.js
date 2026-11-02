@@ -567,6 +567,7 @@
         // ---------- ENEMIES ----------
         const enemyBase = TD_BALANCE.enemies;
         const bossTypes = TD_BALANCE.bosses;
+        const AB = TD_BALANCE.abilities; // числовые ручки способностей — из конфига
         // спрайты существ (нужны enemyBase/bossTypes)
         const ANIM_FRAMES = 4; // кадры цикла шага/взмаха на существо (fallback)
         const enemySprites = enemyBase.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(80, (g,s) => paintCreature(g, s, d, creatureKind(d), false, f))));
@@ -624,7 +625,7 @@
                 this.invulnTimer = 0;
                 this.dmgShieldActive = false;
                 this.dmgShieldTimer = 0;
-                this.dmgShieldCD = 5;
+                this.dmgShieldCD = AB.dmgShield.startCd;
                 this.speedBoost = 1;
                 this.isBoss = isBoss;
                 this.typeIndex = typeIndex;
@@ -650,7 +651,7 @@
                 if (this.invuln) { this.invulnTimer -= dt; if (this.invulnTimer <= 0) this.invuln = false; }
                 if (this.dmgShield) {
                     if (this.dmgShieldCD > 0) this.dmgShieldCD -= dt;
-                    if (this.dmgShieldCD <= 0 && !this.dmgShieldActive) { this.dmgShieldActive = true; this.dmgShieldTimer = 3; this.dmgShieldCD = 8; }
+                    if (this.dmgShieldCD <= 0 && !this.dmgShieldActive) { this.dmgShieldActive = true; this.dmgShieldTimer = AB.dmgShield.dur; this.dmgShieldCD = AB.dmgShield.cd; }
                     if (this.dmgShieldActive) { this.dmgShieldTimer -= dt; if (this.dmgShieldTimer <= 0) this.dmgShieldActive = false; }
                 }
                 if (this.frozen) { this.frozenTimer -= dt; if (this.frozenTimer <= 0) this.frozen = false; return; }
@@ -658,17 +659,17 @@
                 if (this.dotTimer > 0) {
                     this.dotTimer -= dt;
                     this.dotTickTimer += dt;
-                    if (this.dotTickTimer >= 0.5) {
-                        this.dotTickTimer -= 0.5;
+                    if (this.dotTickTimer >= AB.dotTick) {
+                        this.dotTickTimer -= AB.dotTick;
                         this.takeDamage(this.dotDamage, 'poison', true, true);
                         if (!this.alive) return;
                     }
                 }
-                const baseForCalc = (this.berserk && this.hp < this.maxHp*0.5) ? this.baseSpeed*1.6 : this.baseSpeed;
+                const baseForCalc = (this.berserk && this.hp < this.maxHp*AB.berserk.hpThreshold) ? this.baseSpeed*AB.berserk.speedMult : this.baseSpeed;
                 const effSpeed = baseForCalc * this.slowFactor * (this.speedBoost || 1);
                 if (this.pathIdx >= pathPoints.length-1) {
                     this.alive = false;
-                    const livesLost = this.isBoss ? 5 : 1;
+                    const livesLost = this.isBoss ? AB.leakLivesBoss : AB.leakLives;
                     lives -= livesLost;
                     playLeak();
                     if (lives <= 0) gameOver = true;
@@ -688,8 +689,8 @@
                 if (this.healer) {
                     this.healCD -= dt;
                     if (this.healCD <= 0) {
-                        this.healCD = 0.6;
-                        enemies.forEach(e => { if (e!==this && e.alive && Math.hypot(this.x-e.x, this.y-e.y) < 80) e.hp = Math.min(e.maxHp, e.hp + 8); });
+                        this.healCD = AB.healer.cd;
+                        enemies.forEach(e => { if (e!==this && e.alive && Math.hypot(this.x-e.x, this.y-e.y) < AB.healer.radius) e.hp = Math.min(e.maxHp, e.hp + AB.healer.power); });
                     }
                 }
             }
@@ -698,14 +699,14 @@
                 if (this.invuln) return;
                 if (!fromDot && this.shieldActive && this.shield) { this.shieldActive = false; return; }
                 let dmg = amount;
-                if (this.dmgShieldActive) dmg *= 0.5;
+                if (this.dmgShieldActive) dmg *= (1 - AB.dmgShield.cut);
                 if (this.waveShield) dmg *= (1 - this.waveShield);
                 if (!ignoreArmor) {
-                    const armorReduction = Math.min(0.6, this.armor / (this.armor + 50));
+                    const armorReduction = Math.min(AB.armorCap, this.armor / (this.armor + AB.armorK));
                     dmg *= (1 - armorReduction);
                 }
                 if (this.resist[damageType]) dmg *= (1 - this.resist[damageType]);
-                if (dmg < 1) dmg = 1;
+                if (dmg < AB.minDamage) dmg = AB.minDamage;
                 this.hp -= dmg;
                 if (this.hp <= 0) {
                     this.alive = false;
@@ -732,8 +733,8 @@
                     decals.push({ x: this.x, y: this.y + 6, r: this.isBoss ? 26 : 14, timer: 5, maxTimer: 5, rot: Math.random()*Math.PI, seed: Math.random() });
                     if (decals.length > 40) decals.shift();
                 } else if (!fromDot) {
-                    if (this.canInvisible && !this.invisible && this.invisibleCD <= 0) { this.invisible = true; this.invisibleTimer = 2; this.invisibleCD = 6; }
-                    if (this.canInvuln && !this.invuln) { this.invuln = true; this.invulnTimer = 1; }
+                    if (this.canInvisible && !this.invisible && this.invisibleCD <= 0) { this.invisible = true; this.invisibleTimer = AB.invisible.dur; this.invisibleCD = AB.invisible.cd; }
+                    if (this.canInvuln && !this.invuln) { this.invuln = true; this.invulnTimer = AB.invuln.dur; }
                 }
             }
             applySlow(factor, dur) { if (factor < this.slowFactor || this.slowTimer <= 0) { this.slowFactor = factor; this.slowTimer = dur; } }
@@ -849,9 +850,9 @@
                     if (this.slow>0) this.target.applySlow(this.slow, this.slowDur);
                     if (this.dotDmg>0) {
                         if (this.type === 'poison') playPoisonHit();
-                        this.target.applyDot(this.dotDmg/ (this.dotDur/0.5), this.dotDur);
+                        this.target.applyDot(this.dotDmg/ (this.dotDur/AB.dotTick), this.dotDur);
                         if (this.type === 'poison' && this.level === 4) {
-                            enemies.forEach(e => { if (e.alive && !e.invisible && e !== this.target && Math.hypot(this.target.x - e.x, this.target.y - e.y) <= 70) e.applyDot(this.dotDmg / (this.dotDur/0.5), this.dotDur); });
+                            enemies.forEach(e => { if (e.alive && !e.invisible && e !== this.target && Math.hypot(this.target.x - e.x, this.target.y - e.y) <= 70) e.applyDot(this.dotDmg / (this.dotDur/AB.dotTick), this.dotDur); });
                         }
                     }
                     effects.push({type:'spark', x:this.target.x, y:this.target.y, color:this.color, timer:0.3});
@@ -1752,7 +1753,7 @@
                 if (e.shieldActive) { ctx.strokeStyle='#ffaa00'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); }
                 if (e.dmgShieldActive) { ctx.strokeStyle='#4488ff'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); }
                 if (e.invuln) { ctx.strokeStyle='#ffdd00'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(ex, ey, e.size*14, 0, 2*Math.PI); ctx.stroke(); }
-                if (e.berserk && e.hp < e.maxHp*0.5) { ctx.strokeStyle='red'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*15, 0, 2*Math.PI); ctx.stroke(); }
+                if (e.berserk && e.hp < e.maxHp*AB.berserk.hpThreshold) { ctx.strokeStyle='red'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*15, 0, 2*Math.PI); ctx.stroke(); }
                 ctx.globalAlpha = e.invisible ? 0.25 : 1;
                 ctx.restore();
             });
