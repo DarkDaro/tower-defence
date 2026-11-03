@@ -80,6 +80,8 @@ def main():
 
             if not g("document.body.classList.contains('immersive')"):
                 failures.append("A: нет класса immersive на тач-ландшафте")
+            if g("document.body.classList.contains('portrait-flow')"):
+                failures.append("A: portrait-flow включился на ландшафте")
             if not g("document.getElementById('game-canvas').parentElement.classList.contains('panzoom')"):
                 failures.append("A: контейнер без panzoom")
 
@@ -170,6 +172,8 @@ def main():
             g2 = lambda js: page2.evaluate(js)
             if g2("document.body.classList.contains('immersive')"):
                 failures.append("B: immersive в портрет-потоке не должен включаться")
+            if not g2("document.body.classList.contains('portrait-flow')"):
+                failures.append("B: нет класса portrait-flow в портрете (стили колонки не применятся)")
             boxh = g2("document.getElementById('game-canvas').parentElement.style.height")
             if not boxh or not boxh.endswith("px"):
                 failures.append(f"B: высота контейнера поля не зафиксирована ({boxh!r})")
@@ -200,6 +204,8 @@ def main():
             g3 = lambda js: page3.evaluate(js)
             if g3("document.body.classList.contains('immersive')"):
                 failures.append("C: immersive включился на десктопе")
+            if g3("document.body.classList.contains('portrait-flow')"):
+                failures.append("C: portrait-flow включился на десктопе")
             if g3("document.getElementById('game-canvas').parentElement.classList.contains('panzoom')"):
                 failures.append("C: panzoom включился на десктопе")
             cw3 = g3("document.getElementById('game-canvas').getBoundingClientRect().width")

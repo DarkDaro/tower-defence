@@ -62,7 +62,10 @@
         // а не поверх него.
         const canvasBox = canvas.parentElement; // .canvas-clip — окно панорамы
         const isCoarse = window.matchMedia('(pointer: coarse)').matches;
-        const portraitFlowQuery = window.matchMedia('(orientation: portrait) and (max-width: 700px)');
+        // порог портрет-потока — из конфига (CFG.view.portraitPx): та же ручка, что у
+        // оверлея «поверни» (checkOrientation); CSS-правила портрета вешаются на
+        // body.portrait-flow (класс ниже), чтобы число жило в одном месте
+        const portraitFlowQuery = window.matchMedia(`(orientation: portrait) and (max-width: ${CFG.view.portraitPx}px)`);
         let zoom = 1, panX = 0, panY = 0, baseScale = 0.2, panZoom = false;
         const activePointers = new Map();
         let dragBase = null, pinchBase = null, viewMoved = false, sharpTimer = null, suppressClickUntil = 0;
@@ -84,6 +87,7 @@
             const portraitFlow = portraitFlowQuery.matches;
             panZoom = isCoarse; // десктоп не трогаем вообще
             document.body.classList.toggle('immersive', panZoom && !portraitFlow);
+            document.body.classList.toggle('portrait-flow', portraitFlow); // CSS-стили портрета — по классу, не по медиа-запросу (порог — CFG.view.portraitPx)
             canvasBox.classList.toggle('panzoom', panZoom);
             if (!panZoom) {
                 // почти во всё окно: панели перекрывают поле, а не сжимают его.
