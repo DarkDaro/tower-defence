@@ -820,31 +820,50 @@
         const waves = TD_BALANCE.waves;
 
         // ---------- GAME FLOW ----------
+        // Сейв: версия схемы (v) + валидация при загрузке. localStorage может быть
+        // недоступен (приватный режим Safari, переполнение квоты) — saveGame зовётся
+        // из игрового цикла (конец волны) и из кликов, необработанное исключение
+        // остановило бы игру. Битый/чужой сейв — не интерпретируем «как получится»,
+        // а отбрасываем: NaN-урон башни делает врага неуязвимым (takeDamage: dmg<min).
+        const SAVE_KEY = 'td_save', SAVE_VERSION = 1;
+        const numOr = (v, dflt, min, max) => (typeof v === 'number' && isFinite(v)) ? Math.min(max, Math.max(min, v)) : dflt;
+
         function saveGame() {
-            const state = { gold, lives, waveNum, mana, towers: towers.map(t => ({ col: t.col, row: t.row, type: t.type, level: t.level })), stats, autoStart, killCount, soundEnabled, gameSpeed, buildType: selectedBuildType, volume };
-            localStorage.setItem('td_save', JSON.stringify(state));
+            const state = { v: SAVE_VERSION, gold, lives, waveNum, mana, towers: towers.map(t => ({ col: t.col, row: t.row, type: t.type, level: t.level })), stats, autoStart, killCount, soundEnabled, gameSpeed, buildType: selectedBuildType, volume };
+            try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) { /* играем без сейва */ }
         }
 
         function loadGame() {
-            const saved = localStorage.getItem('td_save');
+            let saved = null;
+            try { saved = localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
             if (!saved) return false;
             try {
                 const state = JSON.parse(saved);
-                gold = state.gold ?? TD_BALANCE.start.gold;
-                lives = state.lives ?? TD_BALANCE.start.lives;
-                waveNum = state.waveNum ?? 0;
-                mana = state.mana ?? 0;
-                stats = state.stats || { towersBuilt: 0, goldEarned: 0, enemiesKilled: 0, wavesCompleted: 0 };
-                autoStart = state.autoStart ?? false;
-                if (state.killCount) for (let i=0; i<killCount.length && i<state.killCount.length; i++) killCount[i] = state.killCount[i];
-                if (state.soundEnabled !== undefined) {
+                // старая/чужая версия схемы — сейв не читаем, начинаем заново
+                if (state.v !== SAVE_VERSION) { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} return false; }
+                gold = numOr(state.gold, TD_BALANCE.start.gold, 0, 1e9);
+                lives = numOr(state.lives, TD_BALANCE.start.lives, 0, TD_BALANCE.start.lives);
+                waveNum = numOr(state.waveNum, 0, 0, TD_BALANCE.waves.length);
+                mana = numOr(state.mana, 0, 0, TD_BALANCE.mana.max);
+                const st = (state.stats && typeof state.stats === 'object') ? state.stats : {};
+                stats = { towersBuilt: numOr(st.towersBuilt, 0, 0, 1e9), goldEarned: numOr(st.goldEarned, 0, 0, 1e9), enemiesKilled: numOr(st.enemiesKilled, 0, 0, 1e9), wavesCompleted: numOr(st.wavesCompleted, 0, 0, 1e9) };
+                autoStart = typeof state.autoStart === 'boolean' ? state.autoStart : false;
+                if (state.killCount) for (let i=0; i<killCount.length && i<state.killCount.length; i++) killCount[i] = numOr(state.killCount[i], 0, 0, 1e9);
+                if (typeof state.soundEnabled === 'boolean') {
                     soundEnabled = state.soundEnabled;
                     TDAudio.setEnabled(soundEnabled);
                     document.getElementById('sound-btn').innerHTML = soundBtnLabel();
                 }
-                if (state.gameSpeed) { gameSpeed = state.gameSpeed; document.getElementById('speed-btn').innerHTML = speedBtnLabel(); }
-                if (state.volume !== undefined) setVolume(state.volume);
-                towers = (state.towers || []).map(t => { const tw = new Tower(t.col, t.row, t.type); tw.level = t.level; return tw; });
+                if (CFG.timing.speeds.includes(state.gameSpeed)) { gameSpeed = state.gameSpeed; document.getElementById('speed-btn').innerHTML = speedBtnLabel(); }
+                if (state.volume !== undefined) setVolume(numOr(state.volume, CFG.sound.defaultVolume, 0, 1));
+                // валидация башен: неизвестный тип/уровень/клетка в сейве → Tower.cfg дал бы
+                // undefined (NaN-урон, враг неуязвим для такой башни) — бракуем запись целиком
+                towers = (Array.isArray(state.towers) ? state.towers : []).filter(t =>
+                    t && typeof t === 'object' && towerDefs[t.type] &&
+                    Number.isInteger(t.col) && Number.isInteger(t.row) &&
+                    t.col >= 0 && t.col < CFG.view.cols && t.row >= 0 && t.row < CFG.view.rows &&
+                    Number.isInteger(t.level) && t.level >= 1 && t.level <= TD_BALANCE.maxLevel
+                ).map(t => { const tw = new Tower(t.col, t.row, t.type); tw.level = t.level; return tw; });
                 if (state.buildType && towerDefs[state.buildType]) {
                     selectedBuildType = state.buildType;
                     const btn = document.querySelector('.tower-btn[data-type="' + state.buildType + '"]');
@@ -871,7 +890,7 @@
             mana = 0;
             totalPlayTime = 0;
             prevGold = null; prevLives = null; // updateUI перерисует значения
-            localStorage.removeItem('td_save');
+            try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
             document.getElementById('victory-overlay').style.display = 'none';
             document.getElementById('pause-overlay').style.display = 'none';
             document.getElementById('pause-btn').innerHTML = pauseBtnLabel(false);
@@ -931,7 +950,7 @@
                     showEndStats();
                     document.getElementById('start-wave-btn').disabled = true;
                     playVictory();
-                    localStorage.removeItem('td_save');
+                    try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
                 } else {
                     document.getElementById('start-wave-btn').disabled = false;
                     if (autoStart && !paused && !gameOver) {
@@ -2106,9 +2125,10 @@
             ctx.restore();
         }
 
-        let lastTime = 0;
+        let lastTime = 0, frames = 0; // frames — счётчик кадров (тесты: жив ли цикл)
         function loop(ts) {
             if (!lastTime) lastTime = ts;
+            frames++;
             let dt = Math.min(CFG.timing.dtCap, (ts - lastTime)/1000);
             lastTime = ts;
             if (!paused && !gameOver && !victory) {
@@ -2184,7 +2204,7 @@
         if (loadGame() && lives > 0) { /* сейв жив */ } else resetGame(); // сейв с lives<=0 — мёртвый, начинаем заново
         setHpNumbers(showHpNumbers); // тумблер цифр HP — из настроек
         // отладочный доступ к состоянию (для тестов)
-        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, waveActive, waveSpawningComplete, wave: waveNum, lives, gold, kills: stats.enemiesKilled, speed: gameSpeed, paused, gameOver, victory, decals: decals.length, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]), tw: towers.map(t=>[t.col,t.row,t.type]), hpNum: showHpNumbers }; }, spawn(n, type) { for (let i=0; i<(n||10); i++) enemies.push(new Enemy(type||1, waveNum)); },
+        window.__TD = { get state() { return { enemies: enemies.length, alive: enemies.filter(e=>e.alive).length, queue: spawnQueue.length, clock: spawnClock, frames, waveActive, waveSpawningComplete, wave: waveNum, lives, gold, kills: stats.enemiesKilled, speed: gameSpeed, paused, gameOver, victory, decals: decals.length, pos: enemies.slice(0,5).map(e=>[e.x|0, e.y|0, e.alive?1:0]), tw: towers.map(t=>[t.col,t.row,t.type]), hpNum: showHpNumbers }; }, spawn(n, type) { for (let i=0; i<(n||10); i++) enemies.push(new Enemy(type||1, waveNum)); },
             // хуки замера баланса (scripts/wave_run.py): стройка/апгрейд без кликов мыши
             build(col, row, type) {
                 if (!towerDefs[type]) return 'no-type';

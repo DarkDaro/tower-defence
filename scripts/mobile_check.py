@@ -8,6 +8,8 @@
   B. портретный телефон 390x844, тач — портрет-поток: высота контейнера поля
      фиксирована, зум работает внутри, клик по клетке строит;
   C. десктоп 1440x900 без тача — регресс: как было, «contain», без классов.
+  D. сейв: сломанный localStorage (приватный режим), мусор и сейвы без версии/с
+     битыми башнями — игра стартует, цикл живёт, валидация бракует мусор.
 
 Запуск:  python3 scripts/mobile_check.py [порт]   (сервер поднимается сам)
 """
@@ -203,6 +205,70 @@ def main():
             cw3 = g3("document.getElementById('game-canvas').getBoundingClientRect().width")
             if abs(cw3 - (1440 - 24)) > 3:  # contain: min((1440-24)/1792,(900-24)/1008)*1792 = 1416
                 failures.append(f"C: десктопная вписывание изменилась ({cw3:.0f} вместо 1416)")
+
+            # ---------- D. Сейв: битый localStorage и битые сейвы не роняют игру ----------
+            # D1: setItem всегда бросает (приватный режим Safari) + мусор вместо сейва:
+            # игра стартует на дефолтах, цикл живёт, saveGame из клика не даёт ошибок
+            ctx4 = browser.new_context(viewport={"width": 1280, "height": 800})
+            page4 = ctx4.new_page()
+            errors4 = []
+            page4.on("pageerror", lambda e: errors4.append(str(e)))
+            page4.on("console", lambda m: errors4.append(m.text) if m.type == "error" else None)
+            page4.add_init_script("""
+                try { localStorage.setItem('td_save', 'not-json{'); } catch (e) {}
+                Storage.prototype.setItem = function() { throw new Error('QuotaExceededError'); };
+            """)
+            page4.goto(URL)
+            page4.wait_for_timeout(400)
+            g4 = lambda js: page4.evaluate(js)
+            if g4("__TD.state.gold") != 200:
+                failures.append(f"D1: мусорный сейв не отброшен, gold={g4('__TD.state.gold')}")
+            f0 = g4("__TD.state.frames"); page4.wait_for_timeout(400); f1 = g4("__TD.state.frames")
+            if f1 <= f0:
+                failures.append("D1: игровой цикл умер (frames не тикают) при сломанном localStorage")
+            page4.evaluate("document.getElementById('pause-btn').click()")  # setPaused → saveGame с бросающим setItem
+            page4.wait_for_timeout(200)
+            f2 = g4("__TD.state.frames"); page4.wait_for_timeout(300); f3 = g4("__TD.state.frames")
+            if f3 <= f2:
+                failures.append("D1: цикл умер после saveGame с бросающим setItem")
+            for e in errors4:
+                failures.append(f"D1: ошибка JS: {e[:200]}")
+
+            # D2: сейв без версии схемы (v) — отбрасывается, не интерпретируется
+            ctx5 = browser.new_context(viewport={"width": 1280, "height": 800})
+            page5 = ctx5.new_page()
+            errors5 = []
+            page5.on("pageerror", lambda e: errors5.append(str(e)))
+            page5.on("console", lambda m: errors5.append(m.text) if m.type == "error" else None)
+            page5.add_init_script("localStorage.setItem('td_save', JSON.stringify({gold: 999, lives: 1, waveNum: 5, towers: []}));")
+            page5.goto(URL)
+            page5.wait_for_timeout(400)
+            if page5.evaluate("__TD.state.gold") != 200 or page5.evaluate("__TD.state.wave") != 0:
+                failures.append(f"D2: сейв без версии прочитан (gold={page5.evaluate('__TD.state.gold')}, wave={page5.evaluate('__TD.state.wave')})")
+
+            # D3: валидный сейв v:1 грузится, битые башни (неизвестный тип, уровень 9,
+            # клетка вне поля) бракуются валидацией — без NaN-урона и исключений.
+            # Отдельный контекст: add_init_script перезапускается на reload и затёр бы сейв
+            ctx6 = browser.new_context(viewport={"width": 1280, "height": 800})
+            page6 = ctx6.new_page()
+            errors6 = []
+            page6.on("pageerror", lambda e: errors6.append(str(e)))
+            page6.on("console", lambda m: errors6.append(m.text) if m.type == "error" else None)
+            page6.goto(URL)
+            page6.wait_for_timeout(300)
+            page6.evaluate("""localStorage.setItem('td_save', JSON.stringify({v: 1, gold: 500, lives: 15, waveNum: 3, mana: 100,
+                towers: [{col:4,row:5,type:'archer',level:2}, {col:7,row:7,type:'pirate',level:2},
+                         {col:7,row:7,type:'archer',level:9}, {col:99,row:1,type:'archer',level:1}]}))""")
+            page6.reload()
+            page6.wait_for_timeout(400)
+            if page6.evaluate("__TD.state.gold") != 500:
+                failures.append(f"D3: валидный сейв не загружен (gold={page6.evaluate('__TD.state.gold')})")
+            tw = page6.evaluate("__TD.state.tw")
+            if tw != [[4, 5, "archer"]]:
+                failures.append(f"D3: валидация башен сломана: {tw} (ждали [[4,5,'archer']])")
+            for e in errors6:
+                failures.append(f"D3: ошибка JS: {e[:200]}")
+            ctx4.close(); ctx5.close(); ctx6.close()
 
             for name, errs in (("A", errors), ("B", errors2), ("C", errors3)):
                 for e in errs:
