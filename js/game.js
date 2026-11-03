@@ -406,6 +406,24 @@
         const pngTowers = {};
         for (const k in TOWER_FILES) { const im = new Image(); im.src = 'assets/sprites/towers/' + TOWER_FILES[k] + '.png'; pngTowers[k] = im; }
         const pngOk = im => im.complete && im.naturalWidth > 0;
+        // Белая вспышка попадания: силуэт спрайта, перекрашенный в белый (кэш на изображение);
+        // рисуется поверх обычного спрайта с угасающей прозрачностью — дешёво и без фильтров канвы
+        const flashCache = new WeakMap();
+        function flashSprite(im) {
+            if (!im || !im.width) return null;
+            let c = flashCache.get(im);
+            if (!c) {
+                c = document.createElement('canvas');
+                c.width = im.width; c.height = im.height;
+                const g = c.getContext('2d');
+                g.drawImage(im, 0, 0);
+                g.globalCompositeOperation = 'source-in';
+                g.fillStyle = '#fff';
+                g.fillRect(0, 0, c.width, c.height);
+                flashCache.set(im, c);
+            }
+            return c;
+        }
         function paintTowerSprite(g, s, key, d) {
             const cx = s/2, baseY = s*0.68;
             // тень
@@ -597,6 +615,7 @@
             }
             update(dt) {
                 if (!this.alive) return;
+                if (this.hitFlash > 0) this.hitFlash = Math.max(0, this.hitFlash - dt); // вспышка попадания гаснет быстро
                 if (this.regen && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * this.regen * dt);
                 if (this.invisible) { this.invisibleTimer -= dt; if (this.invisibleTimer <= 0) this.invisible = false; }
                 if (this.invisibleCD > 0) this.invisibleCD -= dt;
@@ -664,6 +683,7 @@
                 if (this.curseTimer > 0 && this.curseAmp > 0) dmg *= (1 + this.curseAmp); // проклятие — от ВСЕХ источников, включая яд
                 if (dmg < AB.minDamage) dmg = AB.minDamage;
                 this.hp -= dmg;
+                if (!fromDot && !this.invisible) this.hitFlash = 0.12; // белая вспышка попадания: урон читается глазом (доты не мигают — тикают 4 раза в секунду)
                 if (this.hp <= 0) {
                     this.alive = false;
                     gold += this.reward;
@@ -706,7 +726,7 @@
 
         // ---------- TOWER CLASS ----------
         class Tower {
-            constructor(col, row, type) { this.col=col; this.row=row; this.type=type; this.level=1; this.cdTimer=0; this.target=null; this.buffMult=1; }
+            constructor(col, row, type) { this.col=col; this.row=row; this.type=type; this.level=1; this.cdTimer=0; this.target=null; this.buffMult=1; this.kickT=0; this.kickAng=0; }
             get cfg() {
                 const d = towerDefs[this.type]; const l = this.level-1;
                 return { damage:d.damage[l], range:d.range[l], cooldown:d.cooldown[l], aoe:d.aoe?d.aoe[l]:0, aoeFalloff:d.aoeFalloff||0, slow:d.slow?d.slow[l]:0,
@@ -727,6 +747,8 @@
             upgradeCost() { return this.level<TD_BALANCE.maxLevel ? TD_BALANCE.economy.upgradeBase + this.level*TD_BALANCE.economy.upgradeStep : null; }
             sellValue() { let sum = towerDefs[this.type].cost; for (let i=1; i<this.level; i++) sum += TD_BALANCE.economy.upgradeBase + i*TD_BALANCE.economy.upgradeStep; return Math.floor(sum*TD_BALANCE.economy.sellRatio); }
             update(dt, enemiesList) {
+                // затухание отдачи: кадр-полтора пинка, потом башня спокойна
+                if (this.kickT > 0) this.kickT = Math.max(0, this.kickT - dt / 0.18);
                 this.cdTimer -= dt; this.target = null;
                 if (this.type === 'buffer') return;
                 let best = Infinity;
@@ -737,6 +759,8 @@
             }
             attack(primary) {
                 const cfg = this.cfg; const sx = (this.col+0.5)*CELL, sy = (this.row+0.5)*CELL;
+                // отдача башни: спрайт статичен, поэтому реакция на выстрел — смещением в отрисовке
+                this.kickT = 1; this.kickAng = Math.atan2(primary.y - sy, primary.x - sx);
                 const bcfg = Object.assign({}, cfg, { damage: cfg.damage * (this.buffMult || 1) });
                 if (this.type === 'lightning') {
                     // Настоящая цепная молния: удар МГНОВЕННЫЙ (без снарядов), разряд прыгает
@@ -1719,15 +1743,23 @@
                     ctx.fillStyle = `rgba(255,200,100,${0.03 + pulse*0.02})`; ctx.fill();
                     ctx.strokeStyle = `rgba(255,200,100,${0.15 + pulse*0.1})`; ctx.lineWidth=1; ctx.stroke();
                 }
+                // Отдача на выстреле по породам: пороховые откатываются по стволу,
+                // лучник приседает от спуска, чародеи — микро-пульс размера (вспышка уже есть)
+                const kick = t.kickT > 0 ? t.kickT * t.kickT : 0; // квадрат: резкий пинок, мягкое возвращение
+                const powder = (t.type === 'cannon' || t.type === 'siege');
+                const isArcher = (t.type === 'archer');
+                const kdx = powder ? Math.cos(t.kickAng) * kick * 4 : 0;
+                const kdy = powder ? Math.sin(t.kickAng) * kick * 4 : (isArcher ? kick * 2.5 : 0);
+                const pulse = (powder || isArcher) ? 1 : 1 + kick * 0.035;
                 const pngT = pngTowers[t.type];
                 if (pngOk(pngT)) {
                     ctx.fillStyle = 'rgba(0,0,0,0.4)';
                     ctx.beginPath(); ctx.ellipse(x, y + CELL*0.32, CELL*0.44, CELL*0.13, 0, 0, 2*Math.PI); ctx.fill();
-                    const w = CELL * 1.6;
-                    ctx.drawImage(pngT, x - w/2, y - w*0.66, w, w);
+                    const w = CELL * 1.6 * pulse;
+                    ctx.drawImage(pngT, x - w/2 + kdx, y - w*0.66 + kdy, w, w);
                 } else {
                     const spr = towerSprites[t.type];
-                    if (spr) ctx.drawImage(spr, x - spr.width*0.65/SPRITE_Q, y - spr.height*0.72/SPRITE_Q, spr.width*1.3/SPRITE_Q, spr.height*1.3/SPRITE_Q);
+                    if (spr) ctx.drawImage(spr, x - spr.width*0.65/SPRITE_Q + kdx, y - spr.height*0.72/SPRITE_Q + kdy, spr.width*1.3/SPRITE_Q * pulse, spr.height*1.3/SPRITE_Q * pulse);
                 }
                 ctx.fillStyle='#ffaa00'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
                 for (let i=0;i<t.level;i++) ctx.fillText('★', x-16 + i*11, y-24);
@@ -1777,12 +1809,30 @@
                     const bob = Math.sin((e.animT || 0) * 6) * (e.flying ? 2.5 : 1.2) * Math.min(1.4, e.size);
                     const w = e.size * 50;
                     ctx.drawImage(png, ex - w/2, ey - w/2 + bob, w, w);
+                    if (e.hitFlash > 0) {
+                        const fsp = flashSprite(png);
+                        if (fsp) {
+                            const ga = ctx.globalAlpha;
+                            ctx.globalAlpha = ga * Math.min(1, e.hitFlash / 0.12) * 0.85;
+                            ctx.drawImage(fsp, ex - w/2, ey - w/2 + bob, w, w);
+                            ctx.globalAlpha = ga;
+                        }
+                    }
                 } else {
                     const frames = e.isBoss ? bossSprites[e.typeIndex] : enemySprites[e.typeIndex];
                     const spr = frames[Math.floor((e.animT || 0) * 6) % frames.length];
                     if (spr) {
                         const w = e.size * 50;
                         ctx.drawImage(spr, ex - w/2, ey - w/2, w, w);
+                        if (e.hitFlash > 0) {
+                            const fsp = flashSprite(spr);
+                            if (fsp) {
+                                const ga = ctx.globalAlpha;
+                                ctx.globalAlpha = ga * Math.min(1, e.hitFlash / 0.12) * 0.85;
+                                ctx.drawImage(fsp, ex - w/2, ey - w/2, w, w);
+                                ctx.globalAlpha = ga;
+                            }
+                        }
                     }
                 }
                 if (e.hp < e.maxHp) {
