@@ -217,6 +217,7 @@
             filter: drop-shadow(0 2px 3px black);
         }
         .kill-icon { width: 20px; height: 20px; vertical-align: -5px; margin-right: 3px; }
+        .kill-emoji { display: inline-block; font-size: 14px; line-height: 20px; text-align: center; }
         .tower-tooltip {
             display: none;
             position: absolute;

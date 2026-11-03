@@ -398,12 +398,12 @@
         const towerSprites = {};
         for (const key in towerDefs) towerSprites[key] = makeSprite(CFG.sprites.towerSize, (g,s) => paintTowerSprite(g, s, key, towerDefs[key]));
         // ---------- PNG-спрайты (этап 5): бестиарий в файлах, fallback — процедурные ----------
-        const ENEMY_FILES = ['boar','wolf','zombie','bat','skeleton','spider','orc','dark_mage','drake','knight','ghost','berserker','sentinel','wind_shaman','gargoyle','necromancer'];
-        const BOSS_FILES = ['orc_chief','spider_queen','dragon_lord','lich_king','demon_lord','shadow_lord','iron_golem','wind_walker'];
-        const TOWER_FILES = { archer:'archer', cannon:'cannon', ice:'ice', magic:'magic', poison:'poison', lightning:'lightning', buffer:'drum', siege:'siege' };
-        const pngEnemies = ENEMY_FILES.map(n => { const im = new Image(); im.src = 'assets/sprites/enemies/' + n + '.png'; return im; });
-        const pngBosses = BOSS_FILES.map(n => { const im = new Image(); im.src = 'assets/sprites/bosses/' + n + '.png'; return im; });
+        // спрайты существ: файл задаётся полем sprite в таблице баланса — один источник;
+        // позиционные списки ENEMY_FILES/BOSS_FILES (дублировали порядок таблиц) убраны
+        const pngEnemies = TD_BALANCE.enemies.map(d => { const im = new Image(); im.src = 'assets/sprites/enemies/' + d.sprite + '.png'; return im; });
+        const pngBosses = TD_BALANCE.bosses.map(d => { const im = new Image(); im.src = 'assets/sprites/bosses/' + d.sprite + '.png'; return im; });
         const pngTowers = {};
+        const TOWER_FILES = { archer:'archer', cannon:'cannon', ice:'ice', magic:'magic', poison:'poison', lightning:'lightning', buffer:'drum', siege:'siege' };
         for (const k in TOWER_FILES) { const im = new Image(); im.src = 'assets/sprites/towers/' + TOWER_FILES[k] + '.png'; pngTowers[k] = im; }
         const pngOk = im => im.complete && im.naturalWidth > 0;
         // Белая вспышка попадания: силуэт спрайта, перекрашенный в белый (кэш на изображение);
@@ -539,7 +539,7 @@
         const ANIM_FRAMES = CFG.sprites.animFrames; // кадры цикла шага/взмаха на существо (fallback)
         const enemySprites = enemyBase.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(CFG.sprites.enemySize, (g,s) => paintCreature(g, s, d, creatureKind(d), false, f))));
         const bossSprites = bossTypes.map(d => Array.from({length: ANIM_FRAMES}, (_, f) => makeSprite(CFG.sprites.bossSize, (g,s) => paintCreature(g, s, d, creatureKind(d), true, f))));
-        // dataURL спрайтов считаем ОДИН раз (иначе 24 toDataURL каждый кадр)
+        // URL спрайтов для иконок килл-листа (PNG по полю sprite из баланса) — считаем один раз
         const killIconUrls = [...pngEnemies, ...pngBosses].map(im => im.src);
 
         function getDifficultyMultiplier(wave) {
@@ -1219,8 +1219,8 @@
             spellBtnUI('fire-rain-btn', fireRainCD, spR.mana);
             const kl = document.getElementById('kill-list');
             let html = '';
-            enemyBase.forEach((t,i)=> html += `<div class="kill-row"><span><img class="kill-icon" src="${killIconUrls[i]}">${t.name}</span><span>${killCount[i]}</span></div>`);
-            bossTypes.forEach((t,i)=> html += `<div class="kill-row"><span><img class="kill-icon" src="${killIconUrls[enemyBase.length + i]}">${t.name}</span><span>${killCount[enemyBase.length + i]}</span></div>`);
+            enemyBase.forEach((t,i)=> html += `<div class="kill-row"><span><img class="kill-icon" src="${killIconUrls[i]}" data-emoji="${t.emoji}" alt="">${t.name}</span><span>${killCount[i]}</span></div>`);
+            bossTypes.forEach((t,i)=> html += `<div class="kill-row"><span><img class="kill-icon" src="${killIconUrls[enemyBase.length + i]}" data-emoji="${t.emoji}" alt="">${t.name}</span><span>${killCount[enemyBase.length + i]}</span></div>`);
             // Перерисовываем только при изменении, а не каждый кадр
             if (html !== updateUI.lastKillHtml) {
                 updateUI.lastKillHtml = html;
@@ -1443,6 +1443,19 @@
 
         // Звук клика для всех кнопок интерфейса
         document.querySelectorAll('.btn, .tower-btn').forEach(b => b.addEventListener('click', () => playClick()));
+        // динамические кнопки инфо-панели (улучшить/продать/массовый режим) создаются
+        // после этой обвязки — звук им доставляется делегированием
+        document.getElementById('selected-info').addEventListener('click', (e) => { if (e.target.closest('.btn')) playClick(); });
+        // битая иконка в килл-листе (нет файла спрайта) → эмодзи существа вместо пустышки
+        document.getElementById('kill-list').addEventListener('error', (e) => {
+            const im = e.target;
+            if (im.tagName === 'IMG' && im.dataset.emoji) {
+                const s = document.createElement('span');
+                s.className = 'kill-icon kill-emoji';
+                s.textContent = im.dataset.emoji;
+                im.replaceWith(s);
+            }
+        }, true);
 
         document.addEventListener('keydown', (e) => {
             // раскладка — в TD_CONFIG.keys (Escape/пробел, U='г' и R='к' на ЙЦУКЕН)
