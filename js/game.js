@@ -197,6 +197,7 @@
         let gold = TD_BALANCE.start.gold, lives = TD_BALANCE.start.lives, waveNum = 0, waveActive = false, waveSpawningComplete = true, autoStart = false;
         let mana = 0, maxMana = TD_BALANCE.mana.max, manaRegen = TD_BALANCE.mana.regen;
         let enemies = [], towers = [], projectiles = [], effects = [], particles = [], floatingTexts = [];
+        const PARTICLE_CAP = 700; // потолок частиц: на ×3 спавн утроен — без капа кадры проседают в мясо босс-волн
         let decals = []; // пятна крови на земле — рисуются ПОД сущностями, копятся как следы боёв
         let screenShake = 0;
         let stats = { towersBuilt: 0, goldEarned: 0, enemiesKilled: 0, wavesCompleted: 0 };
@@ -981,7 +982,7 @@
             autoTimer = -1; waveElapsed = 0;
             gold = TD_BALANCE.start.gold; lives = TD_BALANCE.start.lives; waveNum = 0; waveActive = false; waveSpawningComplete = true;
             enemies = []; towers = []; projectiles = []; effects = []; particles = []; floatingTexts = []; decals = [];
-            selectedTower = null; selectedBuildType = null; gameSpeed = 1; paused = false;
+            selectedTower = null; selectedBuildType = null; massSelType = null; gameSpeed = 1; paused = false;
             gameOver = false; victory = false; lightningCD = 0; frostCD = 0; fireRainCD = 0;
             hoverCol = -1; hoverRow = -1; screenShake = 0;
             stats = { towersBuilt: 0, goldEarned: 0, enemiesKilled: 0, wavesCompleted: 0 };
@@ -1437,6 +1438,11 @@
             }
         }
         document.getElementById('volume-slider').addEventListener('input', (e) => { setVolume(e.target.value/100); saveGame(); });
+        setVolume(volume); // слайдер из конфига при старте: value=80 в HTML — только до JS, иначе рассинхрон при правке defaultVolume
+        // канва НЕ запускает загрузку веб-шрифтов сама — подталкиваем веса,
+        // которые рисуем на канве (в DOM они стоят только фолбэком и не грузятся)
+        document.fonts.load("800 16px 'Grenze Gotisch'"); // цифры наград (bold)
+        document.fonts.load("600 30px 'Grenze Gotisch'"); // подпись баннера мода
         document.getElementById('sound-btn').onclick = ()=>{ soundEnabled = !soundEnabled; TDAudio.setEnabled(soundEnabled); document.getElementById('sound-btn').innerHTML = soundBtnLabel(); saveGame(); };
 
         // Звук клика для всех кнопок интерфейса
@@ -2200,7 +2206,7 @@
             });
             particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life*0.9; ctx.fillRect(p.x-2, p.y-2, 4, 4); ctx.globalAlpha=1; });
             floatingTexts.forEach(t => {
-                ctx.font = "bold 16px 'Cinzel', sans-serif";
+                ctx.font = "bold 16px 'Grenze Gotisch', 'Cormorant', sans-serif"; // локальные шрифты: Cinzel не подключался, канва молча падала в sans-serif
                 ctx.textAlign = 'center';
                 ctx.fillStyle = '#ffdd00';
                 ctx.globalAlpha = Math.min(1, t.life * 2);
@@ -2261,7 +2267,7 @@
                 const a = t < 0.15 ? t/0.15 : (t > 0.8 ? (1-t)/0.2 : 1);
                 ctx.save();
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.font = "900 92px 'Grenze Gotisch', serif";
+                ctx.font = "92px 'Ruslan Display', 'Grenze Gotisch', serif"; // Ruslan предзагружен и знает кириллицу — УРАГАН не падает в serif
                 ctx.fillStyle = `rgba(255,60,40,${a*0.85})`;
                 ctx.shadowColor = 'rgba(255,0,0,0.8)'; ctx.shadowBlur = 30;
                 ctx.fillText(ef.text, VW/2, VH*0.32);
@@ -2273,19 +2279,12 @@
                 }
                 ctx.restore();
             });
-            // виньетка (кэшированный градиент)
-            if (!drawScene._vignette || drawScene._vignetteW !== VW) {
-                const vg = ctx.createRadialGradient(VW/2, VH/2, VH*0.45, VW/2, VH/2, VW*0.72);
-                vg.addColorStop(0, 'rgba(0,0,0,0)');
-                vg.addColorStop(1, 'rgba(0,0,0,0.5)');
-                drawScene._vignette = vg;
-                drawScene._vignetteW = VW;
-            }
-            ctx.fillStyle = drawScene._vignette;
-            ctx.fillRect(0, 0, VW, VH);
+            // виньетка — CSS (inset box-shadow на рамке): канвас-дубль темнил края дважды,
+            // а при панораме уезжал вместе с картой
             if (gameOver) {
                 ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,VW,VH);
-                ctx.font = "bold 48px 'Cinzel', serif"; ctx.fillStyle = '#ff3333'; ctx.textAlign = 'center'; ctx.fillText('ПОРАЖЕНИЕ', VW/2, VH/2);
+                // кириллический дисплейный шрифт вместо ненагруженного Cinzel
+                ctx.font = "48px 'Ruslan Display', serif"; ctx.fillStyle = '#ff3333'; ctx.textAlign = 'center'; ctx.fillText('ПОРАЖЕНИЕ', VW/2, VH/2);
             }
             ctx.restore();
         }
@@ -2342,6 +2341,7 @@
                 projectiles.forEach(p=>p.update(eDt)); projectiles = projectiles.filter(p=>p.alive);
                 effects = effects.filter(e=>{ e.timer-=eDt; return e.timer>0; });
                 particles = particles.filter(p=>{ p.life-=eDt; p.x+=p.vx*eDt; p.y+=p.vy*eDt; if (p.g) p.vy += p.g*eDt; return p.life>0; });
+                if (particles.length > PARTICLE_CAP) particles.splice(0, particles.length - PARTICLE_CAP); // старые — под нож
                 decals = decals.filter(d=>{ d.timer -= eDt; return d.timer > 0; });
                 floatingTexts = floatingTexts.filter(t => { t.y += t.vy * eDt; t.life -= eDt; return t.life > 0; });
                 if (screenShake > 0) screenShake -= eDt;
