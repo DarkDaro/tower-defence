@@ -65,8 +65,8 @@ window.TD_BALANCE = {
             damage:[20,34,50,70], range:[150,170,190,210], cooldown:[0.75,0.63,0.50,0.44], multishot:[1,1,1,3], multishotDmg:[1,1,1,0.5], damageType:'physical',
             projColor:'#ffaa00', projSpeed:500, desc:'Быстрая атака, на 4 ур. — 3 стрелы (доп. стрелы: 50% урона, только по другим целям)' },
         cannon: { name:'Пушка', icon:'💣', cost:90,
-            damage:[40,62,88,120], range:[130,145,160,175], cooldown:[1.75,1.50,1.25,1.13], aoe:[55,65,75,90], damageType:'physical', targets:'ground',
-            projColor:'#ff4400', projSpeed:340, desc:'Взрывной урон по области, не бьёт летунов' },
+            damage:[40,62,88,120], range:[130,145,160,175], cooldown:[1.75,1.50,1.25,1.13], aoe:[60,72,84,100], aoeFalloff:0.5, damageType:'physical', targets:'ground',
+            projColor:'#ff4400', projSpeed:340, desc:'Взрыв по области: в центре полный урон, к краю ×0.5; летунов не задевает даже осколками' },
         ice: { name:'Ледяная', icon:'<span class="ic ic-blue"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g stroke="#8ecbff" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M4 6l16 12M20 6L4 18"/></g></svg></span>', cost:70,
             damage:[16,30,46,64], range:[140,160,180,200], cooldown:[1.13,1.00,0.88,0.75], slow:[0.4,0.3,0.2,0.15], slowDur:2.5, freezeChance:[0,0,0,0.35], freezeDur:[0,0,0,1.5], damageType:'ice',
             projColor:'#88ccff', projSpeed:400, desc:'Замедление, шанс заморозки на 4 ур.' },
@@ -84,8 +84,8 @@ window.TD_BALANCE = {
             auraBuff:[0.25,0.30,0.35,0.40], auraRadius:[120,140,160,180],
             projColor:'#ffcc00', projSpeed:0, desc:'Баффает урон соседних башен +25-40%' },
         siege: { name:'Осадная', icon:'⚔️', cost:100,
-            damage:[32,52,76,105], range:[140,155,170,185], cooldown:[2.00,1.75,1.50,1.25], ignoreArmor:true, damageType:'physical', targets:'ground',
-            projColor:'#cccccc', projSpeed:380, desc:'Пробивает броню, не бьёт летунов' }
+            damage:[32,52,76,105], range:[140,155,170,185], cooldown:[2.00,1.75,1.50,1.25], ignoreArmor:true, pierceLen:140, pierceW:20, pierceMult:0.7, damageType:'physical', targets:'ground',
+            projColor:'#cccccc', projSpeed:380, desc:'Болт прошивает строй насквозь (×0.7 задетым) и игнорирует броню; не бьёт летунов' }
     },
 
     enemies: [

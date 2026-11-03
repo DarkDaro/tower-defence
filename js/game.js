@@ -696,7 +696,7 @@
             constructor(col, row, type) { this.col=col; this.row=row; this.type=type; this.level=1; this.cdTimer=0; this.target=null; this.buffMult=1; }
             get cfg() {
                 const d = towerDefs[this.type]; const l = this.level-1;
-                return { damage:d.damage[l], range:d.range[l], cooldown:d.cooldown[l], aoe:d.aoe?d.aoe[l]:0, slow:d.slow?d.slow[l]:0,
+                return { damage:d.damage[l], range:d.range[l], cooldown:d.cooldown[l], aoe:d.aoe?d.aoe[l]:0, aoeFalloff:d.aoeFalloff||0, slow:d.slow?d.slow[l]:0,
                     // нейтральный ноль вместо литеральных фолбэков (2.5/3/80 дублировали баланс и разошлись с ним):
                     // способность не задана у башни в balance.js — значит её нет; значения нужны только башням с этой способностью
                     slowDur:d.slowDur||0, ignoreArmor:d.ignoreArmor||false, dotDmg:d.dotDmg?d.dotDmg[l]:0, dotDur:d.dotDur||0,
@@ -704,6 +704,7 @@
                     multishotDmg:d.multishotDmg?d.multishotDmg[l]:1,
                     freezeChance:d.freezeChance?d.freezeChance[l]:0, freezeDur:d.freezeDur?d.freezeDur[l]:0,
                     epidemic:d.epidemic?d.epidemic[l]:0, targets:d.targets||'any',
+                    pierceLen:d.pierceLen||0, pierceW:d.pierceW||0, pierceMult:d.pierceMult||0,
                     damageType:d.damageType, projColor:d.projColor, projSpeed:d.projSpeed,
                     auraBuff:d.auraBuff?d.auraBuff[l]:0, auraRadius:d.auraRadius?d.auraRadius[l]:0,
                     level:this.level };
@@ -783,7 +784,7 @@
         }
 
         class Projectile {
-            constructor(x,y,target,type,cfg) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||0; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
+            constructor(x,y,target,type,cfg) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.aoeFalloff=cfg.aoeFalloff||0; this.pierceLen=cfg.pierceLen||0; this.pierceW=cfg.pierceW||0; this.pierceMult=cfg.pierceMult||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||0; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
             update(dt) {
                 if (this.target && this.target.alive && !this.target.invisible) { this.tx = this.target.x; this.ty = this.target.y; }
                 if (!this.target || !this.target.alive || this.target.invisible) {
@@ -819,7 +820,19 @@
                 const hy = this.ty !== undefined ? this.ty : this.target.y;
                 if (this.aoe>0) {
                     effects.push({type:'explosion', x:hx, y:hy, radius:this.aoe, timer:0.5});
-                    enemies.forEach(e=>{ if(!e.alive || e.invisible) return; if(Math.hypot(hx-e.x, hy-e.y)<=this.aoe) e.takeDamage(this.damage, this.damageType, this.ignoreArmor); });
+                    enemies.forEach(e=>{
+                        if(!e.alive || e.invisible) return;
+                        if (this.noFly && e.flying) return; // «не бьёт летунов» — и осколками тоже (раньше сплэш их задевал)
+                        const d = Math.hypot(hx-e.x, hy-e.y);
+                        if (d <= this.aoe) {
+                            // форма взрыва: ядро (45% радиуса) — полный урон, дальше линейное
+                            // затухание до ×(1−aoeFalloff) на кайме. Спад по всему радиусу
+                            // (замер A/B) ронял босс-волну 5: −12 жизней против −2 без чанка
+                            const core = this.aoe * 0.45;
+                            const k = d <= core ? 1 : 1 - this.aoeFalloff * ((d - core) / (this.aoe - core));
+                            e.takeDamage(this.damage * k, this.damageType, this.ignoreArmor);
+                        }
+                    });
                 } else {
                     this.target.takeDamage(this.damage, this.damageType, this.ignoreArmor);
                     if (this.slow>0) this.target.applySlow(this.slow, this.slowDur);
@@ -829,6 +842,26 @@
                         if (this.type === 'poison' && this.epidemic > 0) {
                             enemies.forEach(e => { if (e.alive && !e.invisible && e !== this.target && Math.hypot(this.target.x - e.x, this.target.y - e.y) <= this.epidemic) e.applyDot(this.dotDmg / (this.dotDur/AB.dotTick), this.dotDur); });
                         }
+                    }
+                    if (this.pierceLen > 0) {
+                        // Осадная: болт прошивает строй насквозь — коридор ЗА целью вдоль полёта;
+                        // primary уже получил полный урон, задетые в коридоре — pierceMult
+                        const dirA = this.dir !== undefined ? this.dir : Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                        const dx = Math.cos(dirA), dy = Math.sin(dirA);
+                        const pierced = [];
+                        for (const e of enemies) {
+                            if (!e.alive || e.invisible || e === this.target) continue;
+                            if (this.noFly && e.flying) continue;
+                            const ex = e.x - hx, ey = e.y - hy;
+                            const along = ex*dx + ey*dy;
+                            if (along < -10 || along > this.pierceLen) continue; // чуть позади цели прощаем (центры клеток)
+                            if (Math.abs(-ex*dy + ey*dx) <= this.pierceW) {
+                                e.takeDamage(this.damage * this.pierceMult, this.damageType, this.ignoreArmor);
+                                pierced.push(e);
+                            }
+                        }
+                        effects.push({type:'pierceLine', x:hx, y:hy, ang:dirA, len:this.pierceLen, color:this.color, timer:0.18, maxTimer:0.18});
+                        pierced.forEach(e => effects.push({type:'spark', x:e.x, y:e.y, color:this.color, timer:0.3}));
                     }
                     effects.push({type:'spark', x:this.target.x, y:this.target.y, color:this.color, timer:0.3});
                 }
@@ -1968,6 +2001,19 @@
                         ctx.beginPath(); ctx.moveTo(off - 10, 0); ctx.lineTo(off - 1, 0); ctx.stroke();
                         ctx.restore();
                     }
+                }
+                else if (ef.type==='pierceLine') {
+                    // Осадная: след пробития — светящаяся риска вдоль коридора, быстро гаснет
+                    const a = ef.timer/ef.maxTimer;
+                    ctx.save(); ctx.translate(ef.x, ef.y); ctx.rotate(ef.ang || 0);
+                    ctx.globalAlpha = a * 0.75;
+                    ctx.strokeStyle = ef.color; ctx.lineWidth = 3; ctx.shadowColor = ef.color; ctx.shadowBlur = 8;
+                    ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(ef.len, 0); ctx.stroke();
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = a;
+                    ctx.strokeStyle = 'rgba(242,238,226,0.9)'; ctx.lineWidth = 1.2;
+                    ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(ef.len, 0); ctx.stroke();
+                    ctx.restore();
                 }
                 else if (ef.type==='chainArc') {
                     // Цепная молния шамана: зигзаг-арки по фактическим прыжкам разряда;
