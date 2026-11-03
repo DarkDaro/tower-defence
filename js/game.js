@@ -588,6 +588,7 @@
                 this.healCD = 0;
                 this.frozen = false;
                 this.dotDamage = 0;
+                this.dotCorr = 0;    // коррозия от яда: пока тикает дот, броня плавится
                 this.curseAmp = 0;   // проклятие Чернокнижника: цель получает +curseAmp урона
                 this.curseTimer = 0;
                 this.dotTimer = 0;
@@ -654,7 +655,9 @@
                 if (this.dmgShieldActive) dmg *= (1 - AB.dmgShield.cut);
                 if (this.waveShield) dmg *= (1 - this.waveShield);
                 if (!ignoreArmor) {
-                    const armorReduction = Math.min(AB.armorCap, this.armor / (this.armor + AB.armorK));
+                    // коррозия яда: активный дот плавит броню (алхимик вскрывает цели для всей команды)
+                    const armorEff = Math.max(0, this.armor - (this.dotTimer > 0 ? (this.dotCorr || 0) : 0));
+                    const armorReduction = Math.min(AB.armorCap, armorEff / (armorEff + AB.armorK));
                     dmg *= (1 - armorReduction);
                 }
                 if (this.resist[damageType]) dmg *= (1 - this.resist[damageType]);
@@ -692,7 +695,13 @@
             }
             applySlow(factor, dur) { if (factor < this.slowFactor || this.slowTimer <= 0) { this.slowFactor = factor; this.slowTimer = dur; } }
             applyFreeze(dur) { this.frozen = true; if (dur > this.frozenTimer) this.frozenTimer = dur; }
-            applyDot(damagePerTick, totalDuration) { if (damagePerTick >= this.dotDamage || this.dotTimer <= 0) { this.dotDamage = damagePerTick; this.dotTimer = totalDuration; this.dotTickTimer = 0; } }
+            applyDot(damagePerTick, totalDuration, corr=0) {
+                if (damagePerTick >= this.dotDamage || this.dotTimer <= 0) {
+                    const wasActive = this.dotTimer > 0;
+                    this.dotDamage = damagePerTick; this.dotTimer = totalDuration; this.dotTickTimer = 0;
+                    this.dotCorr = wasActive ? Math.max(this.dotCorr || 0, corr) : corr; // истёкший дот не оставляет коррозию
+                }
+            }
         }
 
         // ---------- TOWER CLASS ----------
@@ -708,6 +717,7 @@
                     multishotDmg:d.multishotDmg?d.multishotDmg[l]:1,
                     freezeChance:d.freezeChance?d.freezeChance[l]:0, freezeDur:d.freezeDur?d.freezeDur[l]:0,
                     epidemic:d.epidemic?d.epidemic[l]:0, targets:d.targets||'any',
+                    corr:d.corr?d.corr[l]:0,
                     curse:d.curse?d.curse[l]:0, curseDur:d.curseDur||0,
                     pierceLen:d.pierceLen||0, pierceW:d.pierceW||0, pierceMult:d.pierceMult||0,
                     damageType:d.damageType, projColor:d.projColor, projSpeed:d.projSpeed,
@@ -789,7 +799,7 @@
         }
 
         class Projectile {
-            constructor(x,y,target,type,cfg) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.aoeFalloff=cfg.aoeFalloff||0; this.pierceLen=cfg.pierceLen||0; this.pierceW=cfg.pierceW||0; this.pierceMult=cfg.pierceMult||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||0; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.curse=cfg.curse||0; this.curseDur=cfg.curseDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
+            constructor(x,y,target,type,cfg) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.aoeFalloff=cfg.aoeFalloff||0; this.pierceLen=cfg.pierceLen||0; this.pierceW=cfg.pierceW||0; this.pierceMult=cfg.pierceMult||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||0; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.curse=cfg.curse||0; this.curseDur=cfg.curseDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.corr=cfg.corr||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
             update(dt) {
                 if (this.target && this.target.alive && !this.target.invisible) { this.tx = this.target.x; this.ty = this.target.y; }
                 if (!this.target || !this.target.alive || this.target.invisible) {
@@ -847,9 +857,9 @@
                     if (this.slow>0) this.target.applySlow(this.slow, this.slowDur);
                     if (this.dotDmg>0) {
                         if (this.type === 'poison') playPoisonHit();
-                        this.target.applyDot(this.dotDmg/ (this.dotDur/AB.dotTick), this.dotDur);
+                        this.target.applyDot(this.dotDmg/ (this.dotDur/AB.dotTick), this.dotDur, this.corr);
                         if (this.type === 'poison' && this.epidemic > 0) {
-                            enemies.forEach(e => { if (e.alive && !e.invisible && e !== this.target && Math.hypot(this.target.x - e.x, this.target.y - e.y) <= this.epidemic) e.applyDot(this.dotDmg / (this.dotDur/AB.dotTick), this.dotDur); });
+                            enemies.forEach(e => { if (e.alive && !e.invisible && e !== this.target && Math.hypot(this.target.x - e.x, this.target.y - e.y) <= this.epidemic) e.applyDot(this.dotDmg / (this.dotDur/AB.dotTick), this.dotDur, this.corr); });
                         }
                     }
                     if (this.pierceLen > 0) {
@@ -1799,6 +1809,10 @@
                 if (e.curseTimer > 0) { // проклятие Чернокнижника — пурпурный пунктир (читается как «сглаз»)
                     ctx.strokeStyle='#b04dff'; ctx.lineWidth=2; ctx.setLineDash([4,3]);
                     ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); ctx.setLineDash([]);
+                }
+                if (e.dotTimer > 0 && (e.dotCorr||0) > 0) { // яд Алхимика плавит броню — зелёное кольцо
+                    ctx.strokeStyle='rgba(136,204,68,0.9)'; ctx.lineWidth=2;
+                    ctx.beginPath(); ctx.arc(ex, ey, e.size*12, 0, 2*Math.PI); ctx.stroke();
                 }
                 if (e.berserk && e.hp < e.maxHp*AB.berserk.hpThreshold) { ctx.strokeStyle='red'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*15, 0, 2*Math.PI); ctx.stroke(); }
                 ctx.globalAlpha = e.invisible ? 0.25 : 1;
