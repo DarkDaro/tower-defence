@@ -588,6 +588,8 @@
                 this.healCD = 0;
                 this.frozen = false;
                 this.dotDamage = 0;
+                this.curseAmp = 0;   // проклятие Чернокнижника: цель получает +curseAmp урона
+                this.curseTimer = 0;
                 this.dotTimer = 0;
                 this.dotTickTimer = 0;
                 this.frozenTimer = 0;
@@ -604,6 +606,7 @@
                     if (this.dmgShieldActive) { this.dmgShieldTimer -= dt; if (this.dmgShieldTimer <= 0) this.dmgShieldActive = false; }
                 }
                 if (this.frozen) { this.frozenTimer -= dt; if (this.frozenTimer <= 0) this.frozen = false; return; }
+                if (this.curseTimer > 0) this.curseTimer -= dt;
                 if (this.slowTimer > 0) { this.slowTimer -= dt; if (this.slowTimer <= 0) this.slowFactor = 1; }
                 if (this.dotTimer > 0) {
                     this.dotTimer -= dt;
@@ -655,6 +658,7 @@
                     dmg *= (1 - armorReduction);
                 }
                 if (this.resist[damageType]) dmg *= (1 - this.resist[damageType]);
+                if (this.curseTimer > 0 && this.curseAmp > 0) dmg *= (1 + this.curseAmp); // проклятие — от ВСЕХ источников, включая яд
                 if (dmg < AB.minDamage) dmg = AB.minDamage;
                 this.hp -= dmg;
                 if (this.hp <= 0) {
@@ -704,6 +708,7 @@
                     multishotDmg:d.multishotDmg?d.multishotDmg[l]:1,
                     freezeChance:d.freezeChance?d.freezeChance[l]:0, freezeDur:d.freezeDur?d.freezeDur[l]:0,
                     epidemic:d.epidemic?d.epidemic[l]:0, targets:d.targets||'any',
+                    curse:d.curse?d.curse[l]:0, curseDur:d.curseDur||0,
                     pierceLen:d.pierceLen||0, pierceW:d.pierceW||0, pierceMult:d.pierceMult||0,
                     damageType:d.damageType, projColor:d.projColor, projSpeed:d.projSpeed,
                     auraBuff:d.auraBuff?d.auraBuff[l]:0, auraRadius:d.auraRadius?d.auraRadius[l]:0,
@@ -784,7 +789,7 @@
         }
 
         class Projectile {
-            constructor(x,y,target,type,cfg) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.aoeFalloff=cfg.aoeFalloff||0; this.pierceLen=cfg.pierceLen||0; this.pierceW=cfg.pierceW||0; this.pierceMult=cfg.pierceMult||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||0; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
+            constructor(x,y,target,type,cfg) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.aoeFalloff=cfg.aoeFalloff||0; this.pierceLen=cfg.pierceLen||0; this.pierceW=cfg.pierceW||0; this.pierceMult=cfg.pierceMult||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||0; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.curse=cfg.curse||0; this.curseDur=cfg.curseDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
             update(dt) {
                 if (this.target && this.target.alive && !this.target.invisible) { this.tx = this.target.x; this.ty = this.target.y; }
                 if (!this.target || !this.target.alive || this.target.invisible) {
@@ -835,6 +840,10 @@
                     });
                 } else {
                     this.target.takeDamage(this.damage, this.damageType, this.ignoreArmor);
+                    if (this.curse > 0 && this.target.alive && (this.target.curseTimer <= 0 || this.curse >= this.target.curseAmp)) {
+                        // проклятие: усиливаем/обновляем, слабым не перекрываем сильное
+                        this.target.curseAmp = this.curse; this.target.curseTimer = this.curseDur;
+                    }
                     if (this.slow>0) this.target.applySlow(this.slow, this.slowDur);
                     if (this.dotDmg>0) {
                         if (this.type === 'poison') playPoisonHit();
@@ -1787,6 +1796,10 @@
                 if (e.shieldActive) { ctx.strokeStyle='#ffaa00'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); }
                 if (e.dmgShieldActive) { ctx.strokeStyle='#4488ff'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); }
                 if (e.invuln) { ctx.strokeStyle='#ffdd00'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(ex, ey, e.size*14, 0, 2*Math.PI); ctx.stroke(); }
+                if (e.curseTimer > 0) { // проклятие Чернокнижника — пурпурный пунктир (читается как «сглаз»)
+                    ctx.strokeStyle='#b04dff'; ctx.lineWidth=2; ctx.setLineDash([4,3]);
+                    ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); ctx.setLineDash([]);
+                }
                 if (e.berserk && e.hp < e.maxHp*AB.berserk.hpThreshold) { ctx.strokeStyle='red'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*15, 0, 2*Math.PI); ctx.stroke(); }
                 ctx.globalAlpha = e.invisible ? 0.25 : 1;
                 ctx.restore();
