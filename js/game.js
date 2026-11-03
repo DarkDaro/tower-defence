@@ -693,15 +693,17 @@
             get cfg() {
                 const d = towerDefs[this.type]; const l = this.level-1;
                 return { damage:d.damage[l], range:d.range[l], cooldown:d.cooldown[l], aoe:d.aoe?d.aoe[l]:0, slow:d.slow?d.slow[l]:0,
-                    slowDur:d.slowDur||2.5, ignoreArmor:d.ignoreArmor||false, dotDmg:d.dotDmg?d.dotDmg[l]:0, dotDur:d.dotDur||3,
-                    chain:d.chain?d.chain[l]:0, chainRange:d.chainRange||80, multishot:d.multishot?d.multishot[l]:1,
+                    // нейтральный ноль вместо литеральных фолбэков (2.5/3/80 дублировали баланс и разошлись с ним):
+                    // способность не задана у башни в balance.js — значит её нет; значения нужны только башням с этой способностью
+                    slowDur:d.slowDur||0, ignoreArmor:d.ignoreArmor||false, dotDmg:d.dotDmg?d.dotDmg[l]:0, dotDur:d.dotDur||0,
+                    chain:d.chain?d.chain[l]:0, chainRange:d.chainRange||0, multishot:d.multishot?d.multishot[l]:1,
                     freezeChance:d.freezeChance?d.freezeChance[l]:0, freezeDur:d.freezeDur?d.freezeDur[l]:0,
                     epidemic:d.epidemic?d.epidemic[l]:0, targets:d.targets||'any',
                     damageType:d.damageType, projColor:d.projColor, projSpeed:d.projSpeed,
                     auraBuff:d.auraBuff?d.auraBuff[l]:0, auraRadius:d.auraRadius?d.auraRadius[l]:0,
                     level:this.level };
             }
-            upgradeCost() { return this.level<4 ? TD_BALANCE.economy.upgradeBase + this.level*TD_BALANCE.economy.upgradeStep : null; }
+            upgradeCost() { return this.level<TD_BALANCE.maxLevel ? TD_BALANCE.economy.upgradeBase + this.level*TD_BALANCE.economy.upgradeStep : null; }
             sellValue() { let sum = towerDefs[this.type].cost; for (let i=1; i<this.level; i++) sum += TD_BALANCE.economy.upgradeBase + i*TD_BALANCE.economy.upgradeStep; return Math.floor(sum*TD_BALANCE.economy.sellRatio); }
             update(dt, enemiesList) {
                 this.cdTimer -= dt; this.target = null;
@@ -756,7 +758,7 @@
         }
 
         class Projectile {
-            constructor(x,y,target,type,cfg,chain=false) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||2.5; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
+            constructor(x,y,target,type,cfg,chain=false) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||0; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
             update(dt) {
                 if (this.target && this.target.alive && !this.target.invisible) { this.tx = this.target.x; this.ty = this.target.y; }
                 if (!this.target || !this.target.alive || this.target.invisible) {
@@ -764,7 +766,7 @@
                     // живого врага рядом с прежней точкой (баланс: без этого фокус-огонь
                     // терял ~25% урона в трупы переднего врага)
                     const rx = this.tx !== undefined ? this.tx : this.x, ry = this.ty !== undefined ? this.ty : this.y;
-                    let best = null, bestD = 150;
+                    let best = null, bestD = TD_BALANCE.projRetarget;
                     for (const e of enemies) {
                         if (!e.alive || e.invisible) continue;
                         if (this.noFly && e.flying) continue;
@@ -1116,7 +1118,7 @@
             if (massSelType && !selectedTower) {
                 const d = towerDefs[massSelType];
                 const list = towers.filter(t => t.type === massSelType);
-                const upg = list.filter(t => t.level < 4);
+                const upg = list.filter(t => t.level < TD_BALANCE.maxLevel);
                 const upgCost = upg.reduce((s,t) => s + t.upgradeCost(), 0);
                 const sellSum = list.reduce((s,t) => s + t.sellValue(), 0);
                 let html = `<b>${d.icon} ${d.name}</b> — выбрано ${list.length}, на максимуме ${list.length - upg.length} `;
@@ -1143,7 +1145,7 @@
                     const dps = (cfg.damage / cfg.cooldown).toFixed(0);
                     html = `${d.icon} ${d.name} ур.${t.level} | Урон:${cfg.damage} | CD:${cfg.cooldown}с | DPS:${dps} `;
                 }
-                if (t.level < 4) html += `<button class="btn" id="upg-btn">Улучшить (${goldIco(t.upgradeCost())})</button>`;
+                if (t.level < TD_BALANCE.maxLevel) html += `<button class="btn" id="upg-btn">Улучшить (${goldIco(t.upgradeCost())})</button>`;
                 else html += `<button class="btn" id="upg-btn" disabled title="Максимальный уровень">Макс. уровень</button>`;
                 html += `<button class="btn" id="sell-btn">Продать (${goldIco(t.sellValue())})</button>`;
                 html += `<button class="btn" id="mass-btn" title="Выбрать все башни этого типа">Все такие (${towers.filter(x => x.type === t.type).length})</button>`;
@@ -1333,7 +1335,7 @@
                     setPaused(!paused);
                 }
             }
-            if (CFG.keys.upgrade.includes(e.key) && !paused && selectedTower && selectedTower.level < 4) {
+            if (CFG.keys.upgrade.includes(e.key) && !paused && selectedTower && selectedTower.level < TD_BALANCE.maxLevel) {
                 if (gold >= selectedTower.upgradeCost()) {
                     gold -= selectedTower.upgradeCost();
                     selectedTower.level++;
