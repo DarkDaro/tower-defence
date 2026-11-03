@@ -109,8 +109,8 @@ window.TD_BALANCE = {
 
     bosses: [
         { name:'Вождь орков', emoji:'👹', sprite:'orc_chief', hp:1200, speed:42, armor:15, resist:{}, berserk:true, reward:110, color:'#8B0000', size:1.6 },
-        { name:'Королева пауков', emoji:'🕷️', sprite:'spider_queen', hp:1000, speed:48, armor:10, resist:{poison:0.7}, poison:true, reward:85, color:'#4A148C', size:1.6 },
-        { name:'Драконий лорд', emoji:'🐉', sprite:'dragon_lord', hp:1500, speed:38, armor:20, resist:{fire:0.6}, aoeDamage:true, reward:50, color:'#B71C1C', size:1.8, flying:true },
+        { name:'Королева пауков', emoji:'🕷️', sprite:'spider_queen', hp:1000, speed:48, armor:10, resist:{poison:0.7}, reward:85, color:'#4A148C', size:1.6 },
+        { name:'Драконий лорд', emoji:'🐉', sprite:'dragon_lord', hp:1500, speed:38, armor:20, resist:{fire:0.6}, reward:50, color:'#B71C1C', size:1.8, flying:true },
         { name:'Лич-король', emoji:'🧙‍♂️', sprite:'lich_king', hp:1400, speed:40, armor:12, resist:{magic:0.5}, healer:true, reward:130, color:'#311B92', size:1.7 },
         { name:'Владыка демонов', emoji:'👑', sprite:'demon_lord', hp:2200, speed:36, armor:25, resist:{physical:0.3}, shield:true, berserk:true, reward:180, color:'#1a1a1a', size:2.0 },
         { name:'Владыка теней', emoji:'👤', sprite:'shadow_lord', hp:1800, speed:45, armor:10, resist:{magic:0.3}, reward:145, color:'#1a1a3a', size:1.7, canInvisible:true },

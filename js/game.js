@@ -386,7 +386,7 @@
         function creatureKind(d) {
             if (d.healer) return 'mage';
             if (d.shield) return 'knight';
-            if (d.poison) return 'spider';
+            if (d.resist && d.resist.poison) return 'spider'; // паук и Королева пауков — по сопротивлению яду
             if (d.canInvisible) return 'ghost';
             if (d.auraSpeed) return 'wisp';
             if (d.flying) return 'wyrm';
@@ -574,10 +574,8 @@
                 this.color = src.color;
                 this.size = src.size || 1.0;
                 this.emoji = src.emoji || '❓';
-                this.poison = src.poison || false;
                 this.berserk = src.berserk || false;
                 this.healer = src.healer || false;
-                this.aoeDamage = src.aoeDamage || false;
                 this.shield = src.shield || false;
                 this.shieldActive = this.shield;
                 this.canInvisible = src.canInvisible || false;
