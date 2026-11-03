@@ -62,8 +62,8 @@ window.TD_BALANCE = {
     // ---------- БАШНИ, ВРАГИ, ВОЛНЫ ----------
     towers: {
         archer: { name:'Лучник', icon:'🏹', cost:60,
-            damage:[20,34,50,70], range:[150,170,190,210], cooldown:[0.75,0.63,0.50,0.44], multishot:[1,1,1,3], damageType:'physical',
-            projColor:'#ffaa00', projSpeed:500, desc:'Быстрая атака, мультивыстрел (3 стрелы) на 4 ур.' },
+            damage:[20,34,50,70], range:[150,170,190,210], cooldown:[0.75,0.63,0.50,0.44], multishot:[1,1,1,3], multishotDmg:[1,1,1,0.5], damageType:'physical',
+            projColor:'#ffaa00', projSpeed:500, desc:'Быстрая атака, на 4 ур. — 3 стрелы (доп. стрелы: 50% урона, только по другим целям)' },
         cannon: { name:'Пушка', icon:'💣', cost:90,
             damage:[40,62,88,120], range:[130,145,160,175], cooldown:[1.75,1.50,1.25,1.13], aoe:[55,65,75,90], damageType:'physical', targets:'ground',
             projColor:'#ff4400', projSpeed:340, desc:'Взрывной урон по области, не бьёт летунов' },

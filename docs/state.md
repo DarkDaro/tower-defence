@@ -167,3 +167,4 @@
 - `816e27a` баланс: maxLevel и projRetarget в TD_BALANCE, литеральные фолбэки (slowDur/dotDur/chainRange) заменены нейтральным нулём; замер волн 1-3 — база
 - `fb312f9` сейв: try/catch вокруг localStorage, версия схемы v:1, валидация загрузки (numOr, gameSpeed из конфига, брак битых башен); mobile_check секция D
 - `3c1f60d` мобилка: порог портрета только в CFG.view.portraitPx — CSS по классу body.portrait-flow, media-запрос game.js из конфига; ассерты класса в mobile_check
+- (баланс) нерф мультишота лучника: multishotDmg 50% на доп. стрелы, без свала веера в primary — 4 ур. 477→318 сумм. DPS; полоса шума замера на 8-й волне ±7 жизней

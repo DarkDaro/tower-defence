@@ -701,6 +701,7 @@
                     // способность не задана у башни в balance.js — значит её нет; значения нужны только башням с этой способностью
                     slowDur:d.slowDur||0, ignoreArmor:d.ignoreArmor||false, dotDmg:d.dotDmg?d.dotDmg[l]:0, dotDur:d.dotDur||0,
                     chain:d.chain?d.chain[l]:0, chainRange:d.chainRange||0, multishot:d.multishot?d.multishot[l]:1,
+                    multishotDmg:d.multishotDmg?d.multishotDmg[l]:1,
                     freezeChance:d.freezeChance?d.freezeChance[l]:0, freezeDur:d.freezeDur?d.freezeDur[l]:0,
                     epidemic:d.epidemic?d.epidemic[l]:0, targets:d.targets||'any',
                     damageType:d.damageType, projColor:d.projColor, projSpeed:d.projSpeed,
@@ -731,22 +732,21 @@
                     }
                     targets.forEach(t => projectiles.push(new Projectile(sx, sy, t, this.type, bcfg, true)));
                 } else if ((cfg.multishot||1) > 1) {
-                    // Мультивыстрел: число стрел — из конфига (archer: [1,1,1,3])
+                    // Мультивыстрел: число стрел — из конфига (archer: [1,1,1,3]). Доп. стрелы
+                    // бьют слабее (multishotDmg) и ТОЛЬКО по другим целям: сваливание всего
+                    // веера в primary делало 4 ур. имбой (×3 урона в одну цель)
                     const inRange = enemies.filter(en => en.alive && en !== primary && !en.invisible && Math.hypot(sx - en.x, sy - en.y) <= cfg.range);
                     const targets = [primary];
-                    for (let i=1; i<cfg.multishot; i++) {
-                        if (inRange.length > 0) {
-                            const idx = Math.floor(Math.random()*inRange.length);
-                            targets.push(inRange[idx]);
-                            inRange.splice(idx, 1);
-                        } else {
-                            targets.push(primary); // fallback to primary if no other targets
-                        }
+                    while (targets.length < cfg.multishot && inRange.length > 0) {
+                        const idx = Math.floor(Math.random()*inRange.length);
+                        targets.push(inRange[idx]);
+                        inRange.splice(idx, 1);
                     }
                     targets.forEach((tgt, i) => {
                         const ox = i===0 ? 0 : (i===1 ? -10 : 10);
                         const oy = i===0 ? 0 : -6;
-                        projectiles.push(new Projectile(sx+ox, sy+oy, tgt, this.type, bcfg));
+                        const pcfg = i===0 ? bcfg : Object.assign({}, bcfg, { damage: bcfg.damage * cfg.multishotDmg });
+                        projectiles.push(new Projectile(sx+ox, sy+oy, tgt, this.type, pcfg));
                     });
                     effects.push({type:'multishot', x:sx, y:sy, color:cfg.projColor, timer:0.3, maxTimer:0.3,
                         angs: targets.map(t => Math.atan2(t.y - sy, t.x - sx))});
