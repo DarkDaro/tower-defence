@@ -81,6 +81,18 @@ def main():
             if not g("document.getElementById('game-canvas').parentElement.classList.contains('panzoom')"):
                 failures.append("A: контейнер без panzoom")
 
+            # computed-стили: синтетические PointerEvent идут мимо touch-action,
+            # поэтому правила панорамы проверяем только по computed-style
+            ta_clip = g("getComputedStyle(document.getElementById('game-canvas').parentElement).touchAction")
+            ta_canvas = g("getComputedStyle(document.getElementById('game-canvas')).touchAction")
+            ov_clip = g("getComputedStyle(document.getElementById('game-canvas').parentElement).overflow")
+            if ta_clip != 'none':
+                failures.append(f"A: touch-action клипа = {ta_clip!r}, ждали none (мёртвое CSS-правило?)")
+            if ta_canvas != 'none':
+                failures.append(f"A: touch-action канвы = {ta_canvas!r}, ждали none")
+            if ov_clip != 'hidden':
+                failures.append(f"A: overflow клипа = {ov_clip!r}, ждали hidden (канва вылезет из окна)")
+
             cw = g("document.getElementById('game-canvas').parentElement.clientWidth")
             ch = g("document.getElementById('game-canvas').parentElement.clientHeight")
             rw = g("document.getElementById('game-canvas').getBoundingClientRect().width")

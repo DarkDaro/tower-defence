@@ -578,12 +578,15 @@
 canvas, .btn, .tower-btn, #volume-slider { touch-action: manipulation; }
 
 /* --- Режим панорамы/зума (класс ставит game.js на тач-устройствах) ---
-   Окно просмотра — .canvas-clip (обёртка вокруг канвы): канва позиционируется
-   внутри абсолютно и двигается transform'ом (panX/panY), щипок меняет её размер.
+   Класс .panzoom вешается НА .canvas-clip (обёртку канвы), не на .canvas-container.
+   Канва позиционируется внутри абсолютно и двигается transform'ом (panX/panY),
+   щипок меняет её размер. touch-action:none обязателен: без него реальный телефон
+   отдаёт жест браузеру (масштаб страницы) вместо игры; синтетические события
+   тестов touch-action обходят — это ловится только computed-style проверкой.
    Мультиборд — вне клипа: в портрет-потоке идёт под полем, а не поверх него. */
 .canvas-clip { position: relative; }
-.canvas-container.panzoom .canvas-clip { overflow: hidden; touch-action: none; }
-.canvas-container.panzoom .canvas-clip canvas {
+.canvas-clip.panzoom { overflow: hidden; touch-action: none; }
+.canvas-clip.panzoom canvas {
     position: absolute; left: 0; top: 0;
     transform: translate(0, 0); will-change: transform; touch-action: none;
 }
