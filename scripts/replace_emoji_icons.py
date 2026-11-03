@@ -2,10 +2,14 @@
 """Заменяет оставшиеся эмодзи-иконки в deepseek_html_TD.html на inline-SVG
 в тёмно-фэнтезийном стиле (золото/кровь/лёд). Запуск: python replace_emoji_icons.py
 Скрипт идемпотентен: повторный запуск ничего не меняет. Бэкап: *.html.bak
+
+Исторический скрипт: файл-источник deepseek_html_TD.html (прото-версия игры
+до разнесения на index.html/js/css) в репо не живёт — скрипт оставлен для
+археологии, в обычном workflow не участвует.
 """
 import io, os, shutil, re
 
-SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'deepseek_html_TD.html')
+SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'deepseek_html_TD.html')  # файла нет — см. шапку
 BAK = SRC + '.bak'
 
 def svg(body, vb='0 0 24 24'):

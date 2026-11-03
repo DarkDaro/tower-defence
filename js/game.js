@@ -1807,7 +1807,6 @@
             // Глубина: нижние по дорожке рисуются поверх верхних, летуны — поверх всех.
             // Копия, НЕ in-place: порядок enemies определяет приоритет прицеливания башен.
             enemies.slice().sort((a,b) => (a.y + (a.flying ? 10000 : 0)) - (b.y + (b.flying ? 10000 : 0))).forEach(e => {
-                if (!e.emoji) return;
                 ctx.save();
                 if (e.invisible) ctx.globalAlpha = 0.25;
                 const ex = e.x, ey = e.flying ? e.y - 16 : e.y;

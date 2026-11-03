@@ -211,7 +211,7 @@
             transform: scale(1.08);
             box-shadow: 0 0 15px rgba(255,100,100,0.4);
         }
-        .tower-btn .btn-sprite, .tower-btn .icon {
+        .tower-btn .btn-sprite {
             width: 34px; height: 34px;
             image-rendering: auto;
             filter: drop-shadow(0 2px 3px black);
