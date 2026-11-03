@@ -700,7 +700,7 @@
                     // нейтральный ноль вместо литеральных фолбэков (2.5/3/80 дублировали баланс и разошлись с ним):
                     // способность не задана у башни в balance.js — значит её нет; значения нужны только башням с этой способностью
                     slowDur:d.slowDur||0, ignoreArmor:d.ignoreArmor||false, dotDmg:d.dotDmg?d.dotDmg[l]:0, dotDur:d.dotDur||0,
-                    chain:d.chain?d.chain[l]:0, chainRange:d.chainRange||0, multishot:d.multishot?d.multishot[l]:1,
+                    chain:d.chain?d.chain[l]:0, chainRange:d.chainRange||0, chainDecay:d.chainDecay||1, multishot:d.multishot?d.multishot[l]:1,
                     multishotDmg:d.multishotDmg?d.multishotDmg[l]:1,
                     freezeChance:d.freezeChance?d.freezeChance[l]:0, freezeDur:d.freezeDur?d.freezeDur[l]:0,
                     epidemic:d.epidemic?d.epidemic[l]:0, targets:d.targets||'any',
@@ -723,14 +723,35 @@
                 const cfg = this.cfg; const sx = (this.col+0.5)*CELL, sy = (this.row+0.5)*CELL;
                 const bcfg = Object.assign({}, cfg, { damage: cfg.damage * (this.buffMult || 1) });
                 if (this.type === 'lightning') {
-                    let targets = [primary]; let last = primary; let remaining = cfg.chain - 1;
+                    // Настоящая цепная молния: удар МГНОВЕННЫЙ (без снарядов), разряд прыгает
+                    // по целям от последней поражённой, урон затухает за прыжок (chainDecay).
+                    // Визуал — зигзаг-арки по фактическим прыжкам (точки дрожи фиксируются
+                    // один раз, чтобы линия не мигала между кадрами).
+                    const targets = [primary]; const dmul = [1];
+                    let last = primary; let remaining = cfg.chain - 1;
                     let potential = enemies.filter(e => e.alive && e !== primary && !e.invisible);
                     while (remaining>0 && potential.length>0) {
                         potential.sort((a,b)=>Math.hypot(last.x-a.x,last.y-a.y)-Math.hypot(last.x-b.x,last.y-b.y));
                         const next = potential.find(e => Math.hypot(last.x-e.x,last.y-e.y) <= cfg.chainRange);
-                        if (!next) break; targets.push(next); potential = potential.filter(e => e!==next); last = next; remaining--;
+                        if (!next) break; targets.push(next); dmul.push(dmul[dmul.length-1]*cfg.chainDecay);
+                        potential = potential.filter(e => e!==next); last = next; remaining--;
                     }
-                    targets.forEach(t => projectiles.push(new Projectile(sx, sy, t, this.type, bcfg, true)));
+                    const segs = [];
+                    const jag = (x1,y1,x2,y2) => {
+                        const pts = [], d = Math.hypot(x2-x1, y2-y1), n = Math.max(2, Math.floor(d/24));
+                        for (let i=1; i<n; i++) { const k = i/n; pts.push([x1+(x2-x1)*k+(Math.random()-0.5)*12, y1+(y2-y1)*k+(Math.random()-0.5)*12]); }
+                        return pts;
+                    };
+                    let px = sx, py = sy; // от ствола и далее — от каждой поражённой цели
+                    targets.forEach((t, i) => {
+                        segs.push({ x1:px, y1:py, x2:t.x, y2:t.y, pts:jag(px,py,t.x,t.y) });
+                        px = t.x; py = t.y;
+                        if (t.alive) {
+                            t.takeDamage(bcfg.damage * dmul[i], cfg.damageType, cfg.ignoreArmor);
+                            effects.push({type:'spark', x:t.x, y:t.y, color:cfg.projColor, timer:0.3});
+                        }
+                    });
+                    effects.push({type:'chainArc', x:sx, y:sy, color:cfg.projColor, timer:0.22, maxTimer:0.22, segs});
                 } else if ((cfg.multishot||1) > 1) {
                     // Мультивыстрел: число стрел — из конфига (archer: [1,1,1,3]). Доп. стрелы
                     // бьют слабее (multishotDmg) и ТОЛЬКО по другим целям: сваливание всего
@@ -762,7 +783,7 @@
         }
 
         class Projectile {
-            constructor(x,y,target,type,cfg,chain=false) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||0; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
+            constructor(x,y,target,type,cfg) { this.x=x; this.y=y; this.target=target; this.type=type; this.speed=cfg.projSpeed; this.damage=cfg.damage; this.aoe=cfg.aoe||0; this.slow=cfg.slow||0; this.slowDur=cfg.slowDur||0; this.ignoreArmor=cfg.ignoreArmor||false; this.dotDmg=cfg.dotDmg||0; this.dotDur=cfg.dotDur||0; this.freezeChance=cfg.freezeChance||0; this.freezeDur=cfg.freezeDur||0; this.epidemic=cfg.epidemic||0; this.noFly=(cfg.targets==='ground'); this.damageType=cfg.damageType; this.color=cfg.projColor; this.alive=true; this.level=cfg.level||1; this.trail=[]; }
             update(dt) {
                 if (this.target && this.target.alive && !this.target.invisible) { this.tx = this.target.x; this.ty = this.target.y; }
                 if (!this.target || !this.target.alive || this.target.invisible) {
@@ -1766,9 +1787,8 @@
             }
             projectiles.forEach(p => {
                 ctx.save();
-                const isBolt = p.type === 'lightning';
-                // шлейф (молния рисует свой зигзаг)
-                if (!isBolt && p.trail && p.trail.length > 1) {
+                // шлейф снаряда
+                if (p.trail && p.trail.length > 1) {
                     for (let i = 1; i < p.trail.length; i++) {
                         const a = (i / p.trail.length) * 0.28;
                         ctx.globalAlpha = a;
@@ -1843,22 +1863,6 @@
                     const bub = Math.sin(t * 9) * 1.2;
                     ctx.beginPath(); ctx.arc(p.x + 2, p.y - 3 - bub, 0.9, 0, 2*Math.PI); ctx.fill();
                     ctx.beginPath(); ctx.arc(p.x + 3, p.y + 2 + bub * 0.6, 0.7, 0, 2*Math.PI); ctx.fill();
-                } else if (isBolt) {
-                    // молния шамана: дрожащий зигзаг по шлейфу + белое ядро
-                    if (p.trail && p.trail.length > 1) {
-                        ctx.strokeStyle = 'rgba(255,220,80,0.85)';
-                        ctx.shadowColor = '#ffcc00'; ctx.shadowBlur = 10;
-                        ctx.lineWidth = 2.2;
-                        ctx.beginPath(); ctx.moveTo(p.x, p.y);
-                        for (let i = p.trail.length - 1; i >= 0; i--) {
-                            ctx.lineTo(p.trail[i].x + (Math.random()-0.5) * 7, p.trail[i].y + (Math.random()-0.5) * 7);
-                        }
-                        ctx.stroke();
-                        ctx.strokeStyle = 'rgba(255,252,220,0.9)'; ctx.lineWidth = 1;
-                        ctx.stroke();
-                    }
-                    ctx.fillStyle = '#fffbe0';
-                    ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 2*Math.PI); ctx.fill();
                 } else if (p.type === 'siege') {
                     // осадный болт: тяжёлое древко, гранёный наконечник, обмотка
                     ctx.translate(p.x, p.y); ctx.rotate(ang);
@@ -1964,6 +1968,29 @@
                         ctx.beginPath(); ctx.moveTo(off - 10, 0); ctx.lineTo(off - 1, 0); ctx.stroke();
                         ctx.restore();
                     }
+                }
+                else if (ef.type==='chainArc') {
+                    // Цепная молния шамана: зигзаг-арки по фактическим прыжкам разряда;
+                    // точки дрожи предвычислены при выстреле — линия стабильна между кадрами
+                    const a = ef.timer/ef.maxTimer;
+                    ctx.save();
+                    ctx.shadowColor = ef.color; ctx.shadowBlur = 12;
+                    ctx.globalAlpha = a * 0.9;
+                    ctx.strokeStyle = 'rgba(255,214,74,0.95)'; ctx.lineWidth = 2.4;
+                    for (const s of ef.segs) {
+                        ctx.beginPath(); ctx.moveTo(s.x1, s.y1);
+                        for (const pt of s.pts) ctx.lineTo(pt[0], pt[1]);
+                        ctx.lineTo(s.x2, s.y2); ctx.stroke();
+                    }
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = a;
+                    ctx.strokeStyle = 'rgba(255,252,214,0.95)'; ctx.lineWidth = 1;
+                    for (const s of ef.segs) {
+                        ctx.beginPath(); ctx.moveTo(s.x1, s.y1);
+                        for (const pt of s.pts) ctx.lineTo(pt[0], pt[1]);
+                        ctx.lineTo(s.x2, s.y2); ctx.stroke();
+                    }
+                    ctx.restore();
                 }
                 else if (ef.type==='lightningBolt') { const a = ef.timer/ef.maxTimer; ctx.strokeStyle=`rgba(255,255,100,${a})`; ctx.lineWidth=3; ctx.shadowColor='#ffaa00'; ctx.shadowBlur=15; ctx.beginPath(); ctx.moveTo(ef.x, 0); let cx=ef.x; for (let y=0;y<ef.y;y+=20) { cx+=(Math.random()-0.5)*30; ctx.lineTo(cx, y); } ctx.lineTo(ef.x, ef.y); ctx.stroke(); ctx.shadowBlur=0; }
                 else if (ef.type==='frostRing') { const a = ef.timer/ef.maxTimer; const r = ef.maxRadius*(1-a); ctx.strokeStyle=`rgba(150,200,255,${a*0.7})`; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(ef.x, ef.y, r, 0, 2*Math.PI); ctx.stroke(); ctx.strokeStyle=`rgba(200,230,255,${a*0.3})`; ctx.lineWidth=8; ctx.beginPath(); ctx.arc(ef.x, ef.y, r, 0, 2*Math.PI); ctx.stroke(); }
