@@ -178,9 +178,14 @@ def main():
             if not boxh or not boxh.endswith("px"):
                 failures.append(f"B: высота контейнера поля не зафиксирована ({boxh!r})")
             ph = g2("document.getElementById('game-canvas').parentElement.clientHeight")
+            clipw = g2("document.getElementById('game-canvas').parentElement.clientWidth")
+            if clipw < 300:
+                failures.append(f"B: клип поля схлопнулся ({clipw}px из 390) — контейнер потерял ширину")
             rw2 = g2("document.getElementById('game-canvas').getBoundingClientRect().width")
-            if rw2 > 392:
-                failures.append(f"B: канва шире окна в портрете ({rw2:.0f})")
+            if rw2 < clipw - 3:
+                failures.append(f"B: канва ({rw2:.0f}) не накрывает клип ({clipw}) — cover по высоте не сработал")
+            if not g2("document.getElementById('multiboard').classList.contains('collapsed')"):
+                failures.append("B: мультиборд в портрете не свёрнут по умолчанию")
             # зум внутри контейнера: высота контейнера не меняется, канва растёт
             ptr2 = lambda *a: page2.evaluate(
                 """([t, id, x, y]) => document.getElementById('game-canvas')
@@ -198,6 +203,28 @@ def main():
             ph2 = g2("document.getElementById('game-canvas').parentElement.clientHeight")
             if abs(ph2 - ph) > 2:
                 failures.append(f"B: контейнер распёрло зумом ({ph} → {ph2})")
+
+            # щипок наружу: обзор всей карты — канва сжимается ровно до zoomMin=0.6
+            ptr2("pointerdown", 11, 60, 400); ptr2("pointerdown", 12, 300, 400)
+            for i in range(1, 6):
+                ptr2("pointermove", 11, 60 + i * 10, 400)
+                ptr2("pointermove", 12, 300 - i * 44, 400)
+            ptr2("pointerup", 11, 110, 400); ptr2("pointerup", 12, 80, 400)
+            page2.wait_for_timeout(300)
+            rw4 = g2("document.getElementById('game-canvas').getBoundingClientRect().width")
+            if abs(rw4 - rw2 * 0.6) > rw2 * 0.06:
+                failures.append(f"B: обзорный щипок не дал zoomMin ({rw4:.0f}, ждали ~{rw2 * 0.6:.0f})")
+
+            # мультиборд разворачивается по заголовку, клик пересчитывает высоту поля
+            ph3 = g2("document.getElementById('game-canvas').parentElement.clientHeight")
+            page2.evaluate("document.querySelector('#multiboard h3').click()")
+            page2.wait_for_timeout(200)
+            if g2("document.getElementById('multiboard').classList.contains('collapsed')"):
+                failures.append("B: клик по заголовку не развернул мультиборд")
+            ph4 = g2("document.getElementById('game-canvas').parentElement.clientHeight")
+            if ph4 >= ph3:
+                failures.append(f"B: разворот мультиборда не отдал высоту полю ({ph3} → {ph4})")
+            page2.evaluate("document.querySelector('#multiboard h3').click()")  # свернуть обратно
 
             # ---------- C. Десктоп: регресс «как было» ----------
             page3, ctx3, errors3 = new_page(1440, 900, touch=False, coarse=False)

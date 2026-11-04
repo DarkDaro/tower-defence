@@ -577,6 +577,7 @@
 /* ================= МОБИЛЬНЫЕ УСТРОЙСТВА ================= */
 /* Тач: без зума по двойному тапу и без задержки клика */
 canvas, .btn, .tower-btn, #volume-slider { touch-action: manipulation; }
+.btn.is-off { opacity: 0.55; } /* выключенный тумблер читается без текста «выкл» */
 
 /* --- Режим панорамы/зума (класс ставит game.js на тач-устройствах) ---
    Класс .panzoom вешается НА .canvas-clip (обёртку канвы), не на .canvas-container.
@@ -627,6 +628,9 @@ body.immersive .canvas-container .canvas-clip { position: absolute; inset: 0; }
     #auto-btn, #hp-num-btn { min-width: 62px; }
     #lightning-btn, #frost-btn, #fire-rain-btn { min-width: 72px; }
     #restart-btn { display: none; } /* рестарт — в меню паузы, экономим ряд */
+    /* «Авто: выкл» без подписи превращалось в бессмысленное «ВЫКЛ» — значение прячем,
+       состояние видно по приглушению кнопки (класс is-off ставит game.js) */
+    .btn .bval { display: none; }
     #volume-slider { display: none; } /* громкость на мобиле — кнопкой Звук */
     #mana-bar-bg { width: 120px; }
     #bottom-bar { padding: 4px 10px; }
@@ -646,8 +650,16 @@ body.immersive .canvas-container .canvas-clip { position: absolute; inset: 0; }
    Числа 700 здесь больше нет — раньше порог жил в трёх копиях (конфиг/JS/CSS) и
    рассинхронился бы при правке одной из них. */
 body.portrait-flow #top-bar, body.portrait-flow #bottom-bar { position: static; align-self: stretch; width: auto; margin: 4px; }
+body.portrait-flow .canvas-container { width: 100%; } /* иначе контейнер схлопывается по ширине мультиборда: канва absolute, ширину не даёт */
 body.portrait-flow #fs-btn { position: static; } /* из угла строки статов — в ряд кнопок */
 body.portrait-flow #multiboard { position: static; width: auto; margin: 4px; max-height: 30vh; } /* свой скролл: колонка должна влезть в экран, иначе до башен не дотянуться */
+/* сворачивание по клику на заголовок (game.js вешает класс collapsed):
+   в портрете по умолчанию свёрнут — поле важнее списка убитых */
+#multiboard h3 { cursor: pointer; }
+#multiboard h3::after { content: " \25BE"; opacity: 0.7; font-size: 0.8em; }
+#multiboard.collapsed h3::after { content: " \25B8"; }
+#multiboard.collapsed #kill-list, #multiboard.collapsed #stats-panel { display: none; }
+#multiboard.collapsed h3:not(:first-of-type) { display: none; }
 body.portrait-flow #bottom-bar { flex-direction: column; align-items: stretch; }
 body.portrait-flow .info-panel { max-width: 100%; justify-content: center; }
 /* пилюли ресурсов не переносятся (единственный ряд без wrap) — распирали обёртку до 459px при окне 393px */

@@ -22,7 +22,7 @@ window.TD_CONFIG = {
         cell: 56, cols: 32, rows: 18,
         dprCap: 3, dprCapTouch: 2, bufferCap: 4200,
         minScale: 0.12, windowMargin: 24,
-        portraitPx: 700, coverRatio: 1.45, zoomMax: 3
+        portraitPx: 700, coverRatio: 1.45, zoomMax: 3, zoomMin: 0.6
     },
 
     // ---------- СПРАЙТЫ ----------

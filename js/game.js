@@ -85,23 +85,40 @@
         }
         function resize() {
             const portraitFlow = portraitFlowQuery.matches;
+            const wasPortrait = document.body.classList.contains('portrait-flow');
             panZoom = isCoarse; // десктоп не трогаем вообще
             document.body.classList.toggle('immersive', panZoom && !portraitFlow);
             document.body.classList.toggle('portrait-flow', portraitFlow); // CSS-стили портрета — по классу, не по медиа-запросу (порог — CFG.view.portraitPx)
             canvasBox.classList.toggle('panzoom', panZoom);
+            if (portraitFlow && !wasPortrait) {
+                // вошли в портрет: мультиборд сворачиваем по умолчанию — поле важнее;
+                // заголовок «Убито врагов» разворачивает его обратно (плюс resize ниже)
+                const multi = document.getElementById('multiboard');
+                if (multi) multi.classList.add('collapsed');
+            }
             if (!panZoom) {
+                canvasBox.style.width = ''; canvasBox.style.height = ''; // режимы меняются: портретные размеры клипа не должны жить на десктопе
                 // почти во всё окно: панели перекрывают поле, а не сжимают его.
                 // Пол 0.12 вместо 0.25: в портрете телефона (393px) пол 0.25 делал канву
                 // (448px) шире окна — она резалась за краями; теперь честно вписываемся.
                 baseScale = Math.max(CFG.view.minScale, Math.min((window.innerWidth - CFG.view.windowMargin) / VW, (window.innerHeight - CFG.view.windowMargin) / VH));
             } else if (portraitFlow) {
-                // портрет-поток: колонка панель/поле/мультиборд/панель — клип фиксированной
-                // высоты (как вписанное поле), зум и панорама живут внутри клипа
-                baseScale = Math.max(CFG.view.minScale, Math.min((window.innerWidth - CFG.view.windowMargin) / VW, (window.innerHeight - CFG.view.windowMargin) / VH));
+                // портрет-поток: колонка панель/поле/мультиборд/панель. Поле — cover по высоте
+                // клипа: прежнее «contain» схлопывало контейнер по ширине мультиборда
+                // (полка 144px из 366 видимых) и давало клетку 13px, в которую не попасть
+                // пальцем; cover по высоте даёт клетку ~26px и панораму по горизонтали,
+                // обзор всей карты — щипком наружу (zoomMin < 1).
                 canvasBox.style.width = '100%';
-                canvasBox.style.height = `${Math.round(VH * baseScale)}px`;
+                const topEl = document.getElementById('top-bar'), botEl = document.getElementById('bottom-bar'), multiEl = document.getElementById('multiboard');
+                const chrome = (topEl ? topEl.offsetHeight : 0) + (botEl ? botEl.offsetHeight : 0) + (multiEl ? multiEl.offsetHeight : 0);
+                canvasBox.style.height = `${Math.round(Math.max(240, Math.min(window.innerHeight - chrome - 56, 560)))}px`;
+                const cw = canvasBox.clientWidth, ch = canvasBox.clientHeight;
+                baseScale = Math.max(CFG.view.minScale, Math.max(cw / VW, ch / VH));
             } else {
                 // иммерсивный: клип растянут на весь контейнер — меряем его.
+                // инлайн-размеры из портрета снимаем: clip спозиционирован inset:0,
+                // а оставшийся style.height победил бы bottom:0 и срезал поле.
+                canvasBox.style.width = ''; canvasBox.style.height = '';
                 // cover по ширине, если кроп по высоте ≤ coverRatio — поле крупнее
                 // и без пустых полей по бокам; иначе честное вписывание.
                 const cw = canvasBox.clientWidth, ch = canvasBox.clientHeight;
@@ -153,7 +170,7 @@
                 const pts = [...activePointers.values()];
                 const dist = Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y));
                 const ratio = dist / pinchBase.dist;
-                zoom = Math.min(CFG.view.zoomMax, Math.max(1, pinchBase.zoom0 * ratio));
+                zoom = Math.min(CFG.view.zoomMax, Math.max(CFG.view.zoomMin, pinchBase.zoom0 * ratio));
                 // точка под серединой пальцев держится на месте: pan = mid − o − v·(z1/z0)
                 const midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
                 const k = zoom / pinchBase.zoom0;
@@ -192,6 +209,11 @@
         window.addEventListener('orientationchange', resize); // поворот телефона: resize срабатывает не всегда
         if (window.visualViewport) window.visualViewport.addEventListener('resize', resize); // сворачивание адресной строки
         resize();
+        // первичный resize меряет панели до того, как JS достроит кнопки башен и
+        // догрузятся шрифты: в портрете клип получал заниженный хром и наезжал на низ.
+        // Пересчёт после первого кадра и после свопов шрифтов — раскладка сходится сама.
+        requestAnimationFrame(resize);
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => resize());
 
         // ---------- GAME STATE ----------
         let gold = TD_BALANCE.start.gold, lives = TD_BALANCE.start.lives, waveNum = 0, waveActive = false, waveSpawningComplete = true, autoStart = false;
@@ -969,7 +991,9 @@
                     const btn = document.querySelector('.tower-btn[data-type="' + state.buildType + '"]');
                     if (btn) btn.classList.add('active');
                 }
-                document.getElementById('auto-btn').innerHTML = autoStart ? '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> Авто: вкл' : '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> Авто: выкл';
+                const autoBtn = document.getElementById('auto-btn');
+                autoBtn.innerHTML = autoBtnLabel(autoStart);
+                autoBtn.classList.toggle('is-off', !autoStart);
                 // заставляем updateUI перерисовать значения, иначе дисплей
                 // показывает стартовые 200, хотя золото восстановлено
                 prevGold = null; prevLives = null;
@@ -1315,7 +1339,13 @@
 
         document.getElementById('pause-btn').onclick = ()=>{ setPaused(!paused); };
         document.getElementById('speed-btn').onclick = ()=>{ gameSpeed = nextSpeed(); document.getElementById('speed-btn').innerHTML = speedBtnLabel(); saveGame(); };
-        document.getElementById('auto-btn').onclick = ()=>{ autoStart = !autoStart; document.getElementById('auto-btn').innerHTML = autoBtnLabel(autoStart); saveGame(); };
+        document.getElementById('auto-btn').onclick = ()=>{ autoStart = !autoStart; const ab = document.getElementById('auto-btn'); ab.innerHTML = autoBtnLabel(autoStart); ab.classList.toggle('is-off', !autoStart); saveGame(); };
+        // мультиборд сворачивается по заголовку: на телефоне список убитых съедал полэкрана,
+        // в портрете он ещё и схлопывал контейнер поля по своей ширине; клик — тумблер для всех режимов
+        document.querySelectorAll('#multiboard h3').forEach(h => h.addEventListener('click', () => {
+            document.getElementById('multiboard').classList.toggle('collapsed');
+            resize(); // высота клипа зависит от высоты мультиборда — пересчитать
+        }));
         document.getElementById('lightning-btn').onclick = castLightning;
         document.getElementById('frost-btn').onclick = castFrost;
         document.getElementById('fire-rain-btn').onclick = castFireRain;
@@ -1372,6 +1402,7 @@
         // «Играть так» убирает подсказку до перезагрузки страницы.
         const rotateOverlay = document.getElementById('rotate-overlay');
         let rotateDismissed = false;
+        try { rotateDismissed = localStorage.getItem('td_rotate_dismissed') === '1'; } catch(e) {} // выбор «играть в портрете» переживает перезагрузку
         const portraitQuery = window.matchMedia('(orientation: portrait)');
         function checkOrientation() {
             if (!rotateOverlay) return;
@@ -1379,7 +1410,7 @@
             rotateOverlay.style.display = show ? 'flex' : 'none';
         }
         if (rotateOverlay) {
-            document.getElementById('rotate-dismiss').onclick = () => { rotateDismissed = true; checkOrientation(); };
+            document.getElementById('rotate-dismiss').onclick = () => { rotateDismissed = true; try { localStorage.setItem('td_rotate_dismissed', '1'); } catch(e) {} checkOrientation(); };
             if (portraitQuery.addEventListener) portraitQuery.addEventListener('change', checkOrientation);
             window.addEventListener('resize', checkOrientation);
             checkOrientation();
@@ -1400,19 +1431,19 @@
             return `<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 4l9 8-9 8z" fill="#c9c2b4"/><path d="M12 4l9 8-9 8z" fill="#c9c2b4"/></svg></span> x${gameSpeed}`;
         }
         function autoBtnLabel(on) {
-            return '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> <span class="bname">Авто:</span> ' + (on ? 'вкл' : 'выкл');
+            return '<span class="ic"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 12a6 6 0 0110.5-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M17 4v4h-4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M18 12a6 6 0 01-10.5 4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/><path d="M7 20v-4h4" fill="none" stroke="#c9c2b4" stroke-width="2.4" stroke-linecap="round"/></svg></span> <span class="bname">Авто:</span> <span class="bval">' + (on ? 'вкл' : 'выкл') + '</span>';
         }
         function hpNumBtnLabel(on) {
             const eye = on
                 ? '<span class="ic ic-gold"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" fill="none" stroke="#ffcf7a" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="#ffcf7a"/></svg></span>'
                 : '<span class="ic ic-dim"><svg class="sicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" fill="none" stroke="#c9c2b4" stroke-width="2"/><path d="M4 4l16 16" stroke="#ff5a4a" stroke-width="2.2" stroke-linecap="round"/></svg></span>';
-            return eye + ' <span class="bname">Цифры:</span> ' + (on ? 'вкл' : 'выкл');
+            return eye + ' <span class="bname">Цифры:</span> <span class="bval">' + (on ? 'вкл' : 'выкл') + '</span>';
         }
         function setHpNumbers(v) {
             showHpNumbers = v;
             try { localStorage.setItem('td_hp_numbers', v ? '1' : '0'); } catch(e) {}
             const top = document.getElementById('hp-num-btn');
-            if (top) top.innerHTML = hpNumBtnLabel(v);
+            if (top) { top.innerHTML = hpNumBtnLabel(v); top.classList.toggle('is-off', !v); }
             const pm = document.getElementById('pm-hpnum');
             if (pm) pm.innerHTML = hpNumBtnLabel(v);
         }
