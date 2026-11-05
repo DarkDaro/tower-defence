@@ -1824,7 +1824,7 @@
                     }
                 }
                 // Кольца статусов (щит/неуязвимость/ярость) — полупрозрачные: в плотной колонне
-                // не должны закрывать соседних мобов (жалоба хозяина на «шарики и круги»)
+                // не должны закрывать соседних мобов (жалоба автора на «шарики и круги»)
                 ctx.globalAlpha *= 0.72;
                 if (e.shieldActive) { ctx.strokeStyle='#ffaa00'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); }
                 if (e.dmgShieldActive) { ctx.strokeStyle='#4488ff'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(ex, ey, e.size*13, 0, 2*Math.PI); ctx.stroke(); }
